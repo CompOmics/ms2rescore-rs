@@ -1,4 +1,5 @@
 use mzdata::io::MassSpectrometryFormat;
+use std::path::Path;
 
 pub enum SpectrumFileType {
     MascotGenericFormat,
