@@ -23,12 +23,16 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+          components: clippy
+      
+      - name: Cache cargo build artifacts
+        uses: Swatinem/rust-cache@v2
 
       - name: Run Clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-targets --all-features
+          args: --workspace --all-targets --all-features -- -D warnings
 
   pytest:
     runs-on: ${{ matrix.os }}
