@@ -7,7 +7,7 @@ use crate::precursor::Precursor;
 
 impl From<&mzdata::spectrum::MultiLayerSpectrum> for Precursor {
     fn from(spectrum: &mzdata::spectrum::MultiLayerSpectrum) -> Self {
-        let precursor = &spectrum.description.precursor;
+        let precursor = &spectrum.precursor();
         match precursor {
             Some(precursor) => Precursor {
                 mz: precursor.ions[0].mz,
@@ -52,7 +52,7 @@ pub fn parse_precursor_info(
     Ok(reader
         .filter(|spectrum| spectrum.description.ms_level == 2)
         .filter_map(|spectrum| {
-            spectrum.description.precursor.as_ref()?;
+            spectrum.precursor().as_ref()?;
             Some((spectrum.description.id.clone(), Precursor::from(&spectrum)))
         })
         .collect::<HashMap<String, Precursor>>())
@@ -73,8 +73,7 @@ pub fn read_ms2_spectra(spectrum_path: &str) -> Result<Vec<MS2Spectrum>, std::io
 
 fn get_charge_from_spectrum(spectrum: &mzdata::spectrum::MultiLayerSpectrum) -> Option<usize> {
     spectrum
-        .description
-        .precursor
+        .precursor()
         .as_ref()
         .and_then(|p| p.ions.first())
         .and_then(|i| i.charge.map(|c| c.unsigned_abs() as usize))
@@ -99,7 +98,7 @@ fn get_im_from_spectrum_description(
     spectrum: &mzdata::spectrum::MultiLayerSpectrum,
 ) -> Option<f64> {
     if let Some(im) = spectrum.ion_mobility() {
-        return Some(im)
+        return Some(im);
     }
     spectrum
         .description
@@ -117,14 +116,16 @@ fn get_im_from_spectrum_description(
 fn get_im_from_selected_ion(spectrum: &mzdata::spectrum::MultiLayerSpectrum) -> Option<f64> {
     if let Some(ion) = spectrum.precursor().and_then(|p| p.ions.first()) {
         if let Some(im) = ion.ion_mobility() {
-            return Some(im)
+            return Some(im);
         }
-        ion.params().iter().find(|p| {
-            (p.name == "ion_mobility")
-                || (p.name == "inverse reduced ion mobility")
-                || (p.name == "reverse ion mobility")
-        })
-        .and_then(|p| p.value.to_f64().ok())
+        ion.params()
+            .iter()
+            .find(|p| {
+                (p.name == "ion_mobility")
+                    || (p.name == "inverse reduced ion mobility")
+                    || (p.name == "reverse ion mobility")
+            })
+            .and_then(|p| p.value.to_f64().ok())
     } else {
         None
     }

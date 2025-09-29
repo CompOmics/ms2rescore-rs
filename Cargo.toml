@@ -9,10 +9,9 @@ name = "ms2rescore_rs"
 crate-type = ["cdylib"]
 
 [features]
-default = ["thermo"]
-thermo = ["mzdata/thermo"]
+default = []
 
 [dependencies]
+mzdata = { version = "0.59.2", features = ["thermo"] }
 pyo3 = { version = "0.23.3", features = ["anyhow"] }
-mzdata = "0.58.2"
 timsrust = "0.4.1"
