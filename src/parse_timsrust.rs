@@ -35,13 +35,13 @@ pub fn parse_precursor_info(
     spectrum_path: &str,
 ) -> Result<HashMap<String, Precursor>, std::io::Error> {
     let reader = timsrust::readers::SpectrumReader::new(spectrum_path)
-        .map_err(std::io::Error::other)?;
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
     let spectra = reader
         .get_all()
         .into_iter()
         .collect::<Result<Vec<_>, _>>()
-        .map_err(std::io::Error::other)?;
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
     let precursor_info = spectra
         .into_iter()
@@ -57,13 +57,13 @@ pub fn parse_precursor_info(
 /// Read MS2 spectra from spectrum files with timsrust
 pub fn read_ms2_spectra(spectrum_path: &str) -> Result<Vec<MS2Spectrum>, std::io::Error> {
     let reader = timsrust::readers::SpectrumReader::new(spectrum_path)
-        .map_err(std::io::Error::other)?;
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
     let spectra = reader
         .get_all()
         .into_iter()
         .collect::<Result<Vec<_>, _>>()
-        .map_err(std::io::Error::other)?;
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
     Ok(spectra.into_iter().map(MS2Spectrum::from).collect())
 }
