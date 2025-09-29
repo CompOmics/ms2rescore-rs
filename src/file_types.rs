@@ -1,4 +1,5 @@
 use mzdata::io::MassSpectrometryFormat;
+use std::path::Path;
 
 pub enum SpectrumFileType {
     MascotGenericFormat,
@@ -16,7 +17,11 @@ pub fn match_file_type(spectrum_path: &str) -> SpectrumFileType {
         MassSpectrometryFormat::MzMLb => SpectrumFileType::MzMLb,
         MassSpectrometryFormat::ThermoRaw => SpectrumFileType::ThermoRaw,
         MassSpectrometryFormat::Unknown => {
-            let extension = spectrum_path.split('.').last().unwrap_or("").to_lowercase();
+            let extension = Path::new(&spectrum_path)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
             match extension.as_str() {
                 "d" | "ms2" => SpectrumFileType::BrukerRaw,
                 _ => match (
