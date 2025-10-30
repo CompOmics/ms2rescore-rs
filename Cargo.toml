@@ -12,6 +12,6 @@ crate-type = ["cdylib"]
 default = []
 
 [dependencies]
-mzdata = { version = "0.59.2", features = ["thermo"] }
+mzdata = { git = "https://github.com/mobiusklein/mzdata.git", features = ["thermo"] }
 pyo3 = { version = "0.23.3", features = ["anyhow"] }
 timsrust = "0.4.1"
