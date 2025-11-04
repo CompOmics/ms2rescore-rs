@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fs::File;
 
 use mzdata::{params::ParamValue, prelude::*, MZReader};
 
@@ -48,7 +49,7 @@ impl From<mzdata::spectrum::MultiLayerSpectrum> for MS2Spectrum {
 pub fn parse_precursor_info(
     spectrum_path: &str,
 ) -> Result<HashMap<String, Precursor>, std::io::Error> {
-    let reader = MZReader::open_path(spectrum_path)?;
+    let reader = MZReader::<File>::open_read_seek_generic(Box::new(File::open(spectrum_path)?))?;
     Ok(reader
         .filter(|spectrum| spectrum.description.ms_level == 2)
         .filter_map(|spectrum| {
@@ -60,7 +61,7 @@ pub fn parse_precursor_info(
 
 /// Read MS2 spectra from spectrum files with mzdata
 pub fn read_ms2_spectra(spectrum_path: &str) -> Result<Vec<MS2Spectrum>, std::io::Error> {
-    let mut reader = MZReader::open_path(spectrum_path)?;
+    let mut reader = MZReader::<File>::open_read_seek_generic(Box::new(File::open(spectrum_path)?))?;
     if let MZReader::ThermoRaw(inner) = &mut reader {
         inner.set_centroiding(true);
     }
