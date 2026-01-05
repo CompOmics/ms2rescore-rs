@@ -1485,6 +1485,7 @@ version = "0.4.3"
 dependencies = [
  "mzdata",
  "pyo3",
+ "rayon",
  "timsrust",
 ]
 
@@ -1506,8 +1507,10 @@ dependencies = [
  "md5",
  "memchr",
  "mzpeaks",
+ "mzsignal",
  "num-traits",
  "quick-xml",
+ "rayon",
  "regex",
  "sha1",
  "thermorawfilereader",
@@ -1521,6 +1524,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "543be9eac70437bfc915b3339e6ae4f23dc034922f13eb2535dcc19e7e9e9481"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "mzsignal"
+version = "1.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d1bba49ea594cc8898df3977f9c2195ada0da4ee2ef2d057c41f00d1402d271"
+dependencies = [
+ "cfg-if",
+ "libm",
+ "log",
+ "mzpeaks",
+ "num-traits",
+ "rayon",
+ "thiserror 2.0.17",
 ]
 
 [[package]]

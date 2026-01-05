@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 default = []
 
 [dependencies]
-mzdata = { version = "0.59.2", features = ["thermo"] }
+mzdata = { version = "0.59.2", features = ["thermo", "parallelism"] }
 pyo3 = { version = "0.23.3", features = ["anyhow"] }
+rayon = "1.10"
 timsrust = "0.4.1"
