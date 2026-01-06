@@ -4,6 +4,7 @@ mod parse_mzdata;
 mod parse_timsrust;
 mod precursor;
 mod ms2_features;
+mod ms2pip_features;
 
 use std::collections::HashMap;
 
@@ -80,5 +81,6 @@ fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
         ms2_features::batch_ms2_features_from_spectra,
         m
     )?)?;
+    m.add_function(wrap_pyfunction!(ms2pip_features::batch_ms2pip_features_numpy, m)?)?;
     Ok(())
 }
