@@ -16,3 +16,5 @@ mzdata = { version = "0.59.2", features = ["thermo", "parallelism"] }
 pyo3 = { version = "0.23.3", features = ["anyhow"] }
 rayon = "1.10"
 timsrust = "0.4.1"
+rustyms = "0.11"
+ordered-float = "5"

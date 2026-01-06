@@ -3,6 +3,7 @@ mod ms2_spectrum;
 mod parse_mzdata;
 mod parse_timsrust;
 mod precursor;
+mod ms2_features;
 
 use std::collections::HashMap;
 
@@ -75,5 +76,9 @@ fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(is_supported_file_type, m)?)?;
     m.add_function(wrap_pyfunction!(get_precursor_info, m)?)?;
     m.add_function(wrap_pyfunction!(get_ms2_spectra, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        ms2_features::batch_ms2_features_from_spectra,
+        m
+    )?)?;
     Ok(())
 }
