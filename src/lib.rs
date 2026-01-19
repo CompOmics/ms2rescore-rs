@@ -78,9 +78,9 @@ fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_precursor_info, m)?)?;
     m.add_function(wrap_pyfunction!(get_ms2_spectra, m)?)?;
     m.add_function(wrap_pyfunction!(
-        ms2_features::batch_ms2_features_from_spectra,
+        ms2_features::ms2_features_from_ms2spectra,
         m
     )?)?;
-    m.add_function(wrap_pyfunction!(ms2pip_features::batch_ms2pip_features_numpy, m)?)?;
+    m.add_function(wrap_pyfunction!(ms2pip_features::ms2pip_features_from_prediction_peak_arrays, m)?)?;
     Ok(())
 }
