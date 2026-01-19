@@ -4,7 +4,7 @@ type PrecursorReduceArgs = (f64, f64, f64, usize, f64);
 type PrecursorReduceReturn = (PyObject, PrecursorReduceArgs);
 
 #[pyclass(module = "ms2rescore_rs", get_all, set_all)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Precursor {
     pub mz: f64,
     pub rt: f64,
@@ -12,6 +12,7 @@ pub struct Precursor {
     pub charge: usize,
     pub intensity: f64,
 }
+
 
 #[pymethods]
 impl Precursor {
