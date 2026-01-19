@@ -374,10 +374,10 @@ pub fn ms2pip_features_from_prediction_peak_arrays(
             let ob_obj = observed_b[i].bind(py);
             let oy_obj = observed_y[i].bind(py);
 
-            let pb_vec = any_to_vec_f32(&np, &pb_obj)?;
-            let py_vec = any_to_vec_f32(&np, &py_obj)?;
-            let ob_vec = any_to_vec_f32(&np, &ob_obj)?;
-            let oy_vec = any_to_vec_f32(&np, &oy_obj)?;
+            let pb_vec = any_to_vec_f32(&np, pb_obj)?;
+            let py_vec = any_to_vec_f32(&np, py_obj)?;
+            let ob_vec = any_to_vec_f32(&np, ob_obj)?;
+            let oy_vec = any_to_vec_f32(&np, oy_obj)?;
 
             owned.push(Owned {
                 idx: psm_indices[i],
