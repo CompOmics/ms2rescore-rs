@@ -1,18 +1,22 @@
 // src/ms2pip_features.rs
 //
-// MS2PIP feature calculation in Rust (batch + NumPy inputs), with memory-focused optimisations:
-// - Chunked (blocked) copying from NumPy to cap peak memory.
-// - In-place sorting for quantiles (no clone+sort).
-// - Avoid concatenating "all-ion" vectors for Pearson/MSE/Dot/Cos where possible.
+// MS2PIP feature calculation in Rust (batch + flexible NumPy inputs):
+//
+// - Minimize peak memory usage by processing in blocks, and keeping f32 arrays only
+//   while holding the GIL.
+// - Use Rayon for parallelism outside the GIL.
+// - Support arbitrary array-like inputs (lists, different dtypes, non-contiguous arrays)
+//   by converting to contiguous np.ndarray(float32) once per input spectrum.
 
 use std::collections::HashMap;
 
 use numpy::{PyArray1, PyArrayMethods};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::{PyAny, PyModule};
+
 use rayon::prelude::*;
 
-/// Clip lower bound in log2 space: log2(0.001)
 const CLIP_LOG2_MIN: f64 = -9.965_784_284_662_087; // (0.001_f64).log2()
 
 #[inline]
@@ -33,7 +37,33 @@ fn pow2_unlog(x: f64) -> f64 {
 
 #[inline]
 fn finite_or_zero(x: f64) -> f64 {
-    if x.is_finite() { x } else { 0.0 }
+    if x.is_finite() {
+        x
+    } else {
+        0.0
+    }
+}
+
+
+#[inline]
+fn any_to_vec_f32<'py>(
+    np: &'py Bound<'py, PyModule>,
+    obj: &Bound<'py, PyAny>,
+) -> PyResult<Vec<f32>> {
+    // np.ascontiguousarray(obj, dtype="float32")
+    let arr_any = np
+        .getattr("ascontiguousarray")?
+        .call1((obj, "float32"))?;
+
+    let arr = arr_any.extract::<&PyArray1<f32>>()?;
+    let ro = arr.readonly();
+
+    // With contiguity enforced, as_slice() should usually work; keep safe fallback.
+    if let Ok(slice) = ro.as_slice() {
+        Ok(slice.to_vec())
+    } else {
+        Ok(ro.as_array().iter().copied().collect())
+    }
 }
 
 fn pearson(x: &[f64], y: &[f64]) -> f64 {
@@ -117,7 +147,9 @@ fn dot2(a1: &[f64], a2: &[f64], b1: &[f64], b2: &[f64]) -> f64 {
     }
     let d1 = dot(a1, b1);
     let d2 = dot(a2, b2);
-    if !d1.is_finite() || !d2.is_finite() { return f64::NAN; }
+    if !d1.is_finite() || !d2.is_finite() {
+        return f64::NAN;
+    }
     d1 + d2
 }
 
@@ -246,7 +278,6 @@ fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
     if n == 1 {
         return sorted[0];
     }
-    // numpy default: linear interpolation on (n-1)*q
     let pos = (n as f64 - 1.0) * q;
     let lo = pos.floor() as usize;
     let hi = pos.ceil() as usize;
@@ -261,7 +292,7 @@ fn ranks_average_ties(values: &[f64]) -> Vec<f64> {
     let n = values.len();
     let mut idx: Vec<usize> = (0..n).collect();
 
-    // Deterministic ordering (handles NaN consistently). If NaNs exist, caller should typically return NaN.
+    // Deterministic ordering
     idx.sort_by(|&i, &j| values[i].total_cmp(&values[j]));
 
     let mut ranks = vec![0.0; n];
@@ -287,7 +318,6 @@ fn spearman(x: &[f64], y: &[f64]) -> f64 {
     if x.len() != y.len() || x.len() < 2 {
         return f64::NAN;
     }
-    // pandas rank/corr will propagate NaNs; we emulate that by returning NaN if any non-finite
     if x.iter().any(|v| !v.is_finite()) || y.iter().any(|v| !v.is_finite()) {
         return f64::NAN;
     }
@@ -300,10 +330,10 @@ fn spearman(x: &[f64], y: &[f64]) -> f64 {
 pub fn batch_ms2pip_features_numpy(
     py: Python<'_>,
     psm_indices: Vec<usize>,
-    predicted_b: Vec<Py<PyArray1<f32>>>,
-    predicted_y: Vec<Py<PyArray1<f32>>>,
-    observed_b: Vec<Py<PyArray1<f32>>>,
-    observed_y: Vec<Py<PyArray1<f32>>>,
+    predicted_b: Vec<Py<PyAny>>,
+    predicted_y: Vec<Py<PyAny>>,
+    observed_b: Vec<Py<PyAny>>,
+    observed_y: Vec<Py<PyAny>>,
 ) -> PyResult<Vec<(usize, HashMap<String, f64>)>> {
     let n = psm_indices.len();
     if predicted_b.len() != n
@@ -325,28 +355,29 @@ pub fn batch_ms2pip_features_numpy(
         oy: Vec<f32>,
     }
 
-    // Main output: keep capacity to avoid reallocations.
     let mut out: Vec<(usize, HashMap<String, f64>)> = Vec::with_capacity(n);
 
-    // Chunking keeps peak memory bounded. Tune as needed.
+    // Tune for peak memory vs overhead.
     let block_size: usize = 4096;
+
+    // Import numpy once per call.
+    let np = PyModule::import_bound(py, "numpy")?;
 
     for start in (0..n).step_by(block_size) {
         let end = (start + block_size).min(n);
 
-        // ---- Copy out of NumPy while holding the GIL (only this block) ----
+        // ---- Convert/copy while holding the GIL (only this block) ----
         let mut owned: Vec<Owned> = Vec::with_capacity(end - start);
         for i in start..end {
-            let pb = predicted_b[i].bind(py);
-            let pyv = predicted_y[i].bind(py);
-            let ob = observed_b[i].bind(py);
-            let oy = observed_y[i].bind(py);
+            let pb_obj = predicted_b[i].bind(py);
+            let py_obj = predicted_y[i].bind(py);
+            let ob_obj = observed_b[i].bind(py);
+            let oy_obj = observed_y[i].bind(py);
 
-            // Supports non-contiguous by iterating; contiguous arrays will still be fast.
-            let pb_vec: Vec<f32> = pb.readonly().as_array().iter().copied().collect();
-            let py_vec: Vec<f32> = pyv.readonly().as_array().iter().copied().collect();
-            let ob_vec: Vec<f32> = ob.readonly().as_array().iter().copied().collect();
-            let oy_vec: Vec<f32> = oy.readonly().as_array().iter().copied().collect();
+            let pb_vec = any_to_vec_f32(&np, &pb_obj)?;
+            let py_vec = any_to_vec_f32(&np, &py_obj)?;
+            let ob_vec = any_to_vec_f32(&np, &ob_obj)?;
+            let oy_vec = any_to_vec_f32(&np, &oy_obj)?;
 
             owned.push(Owned {
                 idx: psm_indices[i],
@@ -362,7 +393,6 @@ pub fn batch_ms2pip_features_numpy(
             owned
                 .into_par_iter()
                 .map(|it| {
-                    // mimic Python behavior: if mismatched, return empty dict
                     if it.pb.len() != it.ob.len() || it.py.len() != it.oy.len() {
                         return (it.idx, HashMap::new());
                     }
@@ -400,7 +430,6 @@ pub fn batch_ms2pip_features_numpy(
                     abs_all_u.extend_from_slice(&abs_b_u);
                     abs_all_u.extend_from_slice(&abs_y_u);
 
-                    // mean/std before sorting
                     let (mean_abs_all, std_abs_all) = mean_std(&abs_all);
                     let (mean_abs_b, std_abs_b) = mean_std(&abs_b);
                     let (mean_abs_y, std_abs_y) = mean_std(&abs_y);
@@ -409,7 +438,6 @@ pub fn batch_ms2pip_features_numpy(
                     let (mean_abs_b_u, std_abs_b_u) = mean_std(&abs_b_u);
                     let (mean_abs_y_u, std_abs_y_u) = mean_std(&abs_y_u);
 
-                    // sort in place for quantiles + min/max (no clone)
                     abs_all.sort_by(|a, b| a.total_cmp(b));
                     abs_b.sort_by(|a, b| a.total_cmp(b));
                     abs_y.sort_by(|a, b| a.total_cmp(b));
@@ -454,7 +482,6 @@ pub fn batch_ms2pip_features_numpy(
                     let q2_y_u = quantile_sorted(&abs_y_u, 0.5);
                     let q3_y_u = quantile_sorted(&abs_y_u, 0.75);
 
-                    // correlations and similarities (avoid concatenating for "all" where possible)
                     let spec_pearson_norm = pearson2(&tb, &ty, &pb, &pyv);
                     let ionb_pearson_norm = pearson(&tb, &pb);
                     let iony_pearson_norm = pearson(&ty, &pyv);
@@ -475,7 +502,6 @@ pub fn batch_ms2pip_features_numpy(
                     let ionb_pearson = pearson(&tb_u, &pb_u);
                     let iony_pearson = pearson(&ty_u, &py_u);
 
-                    // Spearman "all ions": concatenate only for this metric (keeps parity, limits memory)
                     let mut t_all_u = Vec::with_capacity(tb_u.len() + ty_u.len());
                     t_all_u.extend_from_slice(&tb_u);
                     t_all_u.extend_from_slice(&ty_u);
