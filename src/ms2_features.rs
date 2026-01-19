@@ -88,7 +88,7 @@ fn parse_ion_series_and_index(ion: &str) -> Option<(char, usize)> {
 // ---- Core batch function ----
 
 #[pyfunction]
-pub fn batch_ms2_features_from_spectra(
+pub fn ms2_features_from_ms2spectra(
     py: Python<'_>,
     spectra: Vec<Py<MS2Spectrum>>,
     proformas: Vec<String>,

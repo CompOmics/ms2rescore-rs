@@ -50,15 +50,15 @@ fn any_to_vec_f32<'py>(
     np: &'py Bound<'py, PyModule>,
     obj: &Bound<'py, PyAny>,
 ) -> PyResult<Vec<f32>> {
-    // np.ascontiguousarray(obj, dtype="float32")
+    // np.ascontiguousarray(obj, dtype=np.float32)
     let arr_any = np
         .getattr("ascontiguousarray")?
         .call1((obj, "float32"))?;
 
-    let arr = arr_any.extract::<&PyArray1<f32>>()?;
+    // Convert to a Bound<PyArray1<f32>>
+    let arr = arr_any.downcast::<PyArray1<f32>>()?;
     let ro = arr.readonly();
 
-    // With contiguity enforced, as_slice() should usually work; keep safe fallback.
     if let Ok(slice) = ro.as_slice() {
         Ok(slice.to_vec())
     } else {
@@ -327,7 +327,7 @@ fn spearman(x: &[f64], y: &[f64]) -> f64 {
 }
 
 #[pyfunction]
-pub fn batch_ms2pip_features_numpy(
+pub fn ms2pip_features_from_prediction_peak_arrays(
     py: Python<'_>,
     psm_indices: Vec<usize>,
     predicted_b: Vec<Py<PyAny>>,
@@ -361,7 +361,7 @@ pub fn batch_ms2pip_features_numpy(
     let block_size: usize = 4096;
 
     // Import numpy once per call.
-    let np = PyModule::import_bound(py, "numpy")?;
+    let np: Bound<'_, PyModule> = PyModule::import(py, "numpy")?;
 
     for start in (0..n).step_by(block_size) {
         let end = (start + block_size).min(n);
