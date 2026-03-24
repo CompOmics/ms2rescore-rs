@@ -44,19 +44,16 @@ fn finite_or_zero(x: f64) -> f64 {
     }
 }
 
-
 #[inline]
 fn any_to_vec_f32<'py>(
     np: &'py Bound<'py, PyModule>,
     obj: &Bound<'py, PyAny>,
 ) -> PyResult<Vec<f32>> {
     // np.ascontiguousarray(obj, dtype=np.float32)
-    let arr_any = np
-        .getattr("ascontiguousarray")?
-        .call1((obj, "float32"))?;
+    let arr_any = np.getattr("ascontiguousarray")?.call1((obj, "float32"))?;
 
     // Convert to a Bound<PyArray1<f32>>
-    let arr = arr_any.downcast::<PyArray1<f32>>()?;
+    let arr = arr_any.cast::<PyArray1<f32>>()?;
     let ro = arr.readonly();
 
     if let Ok(slice) = ro.as_slice() {
@@ -389,7 +386,7 @@ pub fn ms2pip_features_from_prediction_peak_arrays(
         }
 
         // ---- Compute this block without the GIL ----
-        let mut block_out: Vec<(usize, HashMap<String, f64>)> = py.allow_threads(|| {
+        let mut block_out: Vec<(usize, HashMap<String, f64>)> = py.detach(|| {
             owned
                 .into_par_iter()
                 .map(|it| {
@@ -413,19 +410,31 @@ pub fn ms2pip_features_from_prediction_peak_arrays(
                     let py_u: Vec<f64> = pyv.iter().copied().map(pow2_unlog).collect();
 
                     // abs diffs (log)
-                    let mut abs_b: Vec<f64> =
-                        tb.iter().zip(pb.iter()).map(|(a, b)| (a - b).abs()).collect();
-                    let mut abs_y: Vec<f64> =
-                        ty.iter().zip(pyv.iter()).map(|(a, b)| (a - b).abs()).collect();
+                    let mut abs_b: Vec<f64> = tb
+                        .iter()
+                        .zip(pb.iter())
+                        .map(|(a, b)| (a - b).abs())
+                        .collect();
+                    let mut abs_y: Vec<f64> = ty
+                        .iter()
+                        .zip(pyv.iter())
+                        .map(|(a, b)| (a - b).abs())
+                        .collect();
                     let mut abs_all: Vec<f64> = Vec::with_capacity(abs_b.len() + abs_y.len());
                     abs_all.extend_from_slice(&abs_b);
                     abs_all.extend_from_slice(&abs_y);
 
                     // abs diffs (unlog)
-                    let mut abs_b_u: Vec<f64> =
-                        tb_u.iter().zip(pb_u.iter()).map(|(a, b)| (a - b).abs()).collect();
-                    let mut abs_y_u: Vec<f64> =
-                        ty_u.iter().zip(py_u.iter()).map(|(a, b)| (a - b).abs()).collect();
+                    let mut abs_b_u: Vec<f64> = tb_u
+                        .iter()
+                        .zip(pb_u.iter())
+                        .map(|(a, b)| (a - b).abs())
+                        .collect();
+                    let mut abs_y_u: Vec<f64> = ty_u
+                        .iter()
+                        .zip(py_u.iter())
+                        .map(|(a, b)| (a - b).abs())
+                        .collect();
                     let mut abs_all_u: Vec<f64> = Vec::with_capacity(abs_b_u.len() + abs_y_u.len());
                     abs_all_u.extend_from_slice(&abs_b_u);
                     abs_all_u.extend_from_slice(&abs_y_u);
@@ -532,9 +541,18 @@ pub fn ms2pip_features_from_prediction_peak_arrays(
                     let mut feats: HashMap<String, f64> = HashMap::with_capacity(66);
 
                     // log space
-                    feats.insert("spec_pearson_norm".into(), finite_or_zero(spec_pearson_norm));
-                    feats.insert("ionb_pearson_norm".into(), finite_or_zero(ionb_pearson_norm));
-                    feats.insert("iony_pearson_norm".into(), finite_or_zero(iony_pearson_norm));
+                    feats.insert(
+                        "spec_pearson_norm".into(),
+                        finite_or_zero(spec_pearson_norm),
+                    );
+                    feats.insert(
+                        "ionb_pearson_norm".into(),
+                        finite_or_zero(ionb_pearson_norm),
+                    );
+                    feats.insert(
+                        "iony_pearson_norm".into(),
+                        finite_or_zero(iony_pearson_norm),
+                    );
                     feats.insert("spec_mse_norm".into(), finite_or_zero(spec_mse_norm));
                     feats.insert("ionb_mse_norm".into(), finite_or_zero(ionb_mse_norm));
                     feats.insert("iony_mse_norm".into(), finite_or_zero(iony_mse_norm));
@@ -564,8 +582,14 @@ pub fn ms2pip_features_from_prediction_peak_arrays(
                     feats.insert("iony_std_abs_diff_norm".into(), finite_or_zero(std_abs_y));
 
                     feats.insert("dotprod_norm".into(), finite_or_zero(dotprod_norm));
-                    feats.insert("dotprod_ionb_norm".into(), finite_or_zero(dotprod_ionb_norm));
-                    feats.insert("dotprod_iony_norm".into(), finite_or_zero(dotprod_iony_norm));
+                    feats.insert(
+                        "dotprod_ionb_norm".into(),
+                        finite_or_zero(dotprod_ionb_norm),
+                    );
+                    feats.insert(
+                        "dotprod_iony_norm".into(),
+                        finite_or_zero(dotprod_iony_norm),
+                    );
                     feats.insert("cos_norm".into(), finite_or_zero(cos_norm));
                     feats.insert("cos_ionb_norm".into(), finite_or_zero(cos_ionb_norm));
                     feats.insert("cos_iony_norm".into(), finite_or_zero(cos_iony_norm));

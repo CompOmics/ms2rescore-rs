@@ -7,15 +7,14 @@ use rayon::prelude::*;
 
 use crate::ms2_spectrum::MS2Spectrum;
 
+use ordered_float::OrderedFloat;
 use rustyms::annotation::model::FragmentationModel;
+use rustyms::annotation::AnnotatableSpectrum;
 use rustyms::chemistry::MassMode;
 use rustyms::prelude::CompoundPeptidoformIon;
-use rustyms::annotation::AnnotatableSpectrum;
-use rustyms::spectrum::{RawPeak, RawSpectrum, PeakSpectrum};
+use rustyms::spectrum::{PeakSpectrum, RawPeak, RawSpectrum};
 use rustyms::system::f64::MassOverCharge;
 use rustyms::system::mass_over_charge::thomson;
-use ordered_float::OrderedFloat;
-
 
 fn parse_fragmentation_model(s: &str) -> PyResult<FragmentationModel> {
     match s.trim().to_ascii_lowercase().as_str() {
@@ -38,8 +37,6 @@ fn parse_mass_mode(s: &str) -> PyResult<MassMode> {
         ))),
     }
 }
-
-
 // ---- Hyperscore helpers (stable; avoids factorial overflow) ----
 
 fn ln_factorial(n: usize) -> f64 {
@@ -47,7 +44,11 @@ fn ln_factorial(n: usize) -> f64 {
 }
 
 fn hyperscore(ny: usize, nb: usize, sum_y: f64, sum_b: f64) -> f64 {
-    let sum = if (sum_y + sum_b) > 0.0 { sum_y + sum_b } else { 1.0 };
+    let sum = if (sum_y + sum_b) > 0.0 {
+        sum_y + sum_b
+    } else {
+        1.0
+    };
     ln_factorial(ny) + ln_factorial(nb) + sum.ln()
 }
 
@@ -97,7 +98,6 @@ pub fn ms2_features_from_ms2spectra(
     mass_mode: String,
     calculate_hyperscore: bool,
 ) -> PyResult<Vec<HashMap<String, f64>>> {
-
     let n = spectra.len();
     if proformas.len() != n || seq_lens.len() != n {
         return Err(PyException::new_err(
@@ -132,15 +132,17 @@ pub fn ms2_features_from_ms2spectra(
                 .map(|p| p.charge as i32)
                 .unwrap_or(0),
             // mimic your Python: psm.peptidoform.proforma.split("/")[0]
-            proforma: proformas[i].split('/').next().unwrap_or(&proformas[i]).to_string(),
+            proforma: proformas[i]
+                .split('/')
+                .next()
+                .unwrap_or(&proformas[i])
+                .to_string(),
         });
     }
 
     // ---- Configure rustyms model/mode ----
     let model = parse_fragmentation_model(&fragmentation_model)?;
-    let mode  = parse_mass_mode(&mass_mode)?;
-
-
+    let mode = parse_mass_mode(&mass_mode)?;
 
     // Matching parameters (tolerance etc.). Start with default; expose knobs later.
     let params = rustyms::annotation::model::MatchingParameters::default();
@@ -153,7 +155,10 @@ pub fn ms2_features_from_ms2spectra(
     for item in &owned {
         let key = (item.proforma.clone(), item.precursor_charge);
         if item.precursor_charge <= 0 {
-            frag_cache.insert((item.proforma.clone(), item.precursor_charge), Arc::new(Vec::new()));
+            frag_cache.insert(
+                (item.proforma.clone(), item.precursor_charge),
+                Arc::new(Vec::new()),
+            );
             continue;
         }
         if frag_cache.contains_key(&key) {
@@ -161,8 +166,7 @@ pub fn ms2_features_from_ms2spectra(
         }
 
         // Parse peptide
-        let peptide = match CompoundPeptidoformIon::pro_forma(&item.proforma, None)
-        {
+        let peptide = match CompoundPeptidoformIon::pro_forma(&item.proforma, None) {
             Ok(p) => p,
             Err(_) => {
                 // Store empty fragments to mimic your Python behavior: return [] on parse/annotate failure
@@ -184,12 +188,15 @@ pub fn ms2_features_from_ms2spectra(
     let params = Arc::new(params);
 
     // ---- Heavy work: release GIL and parallelize ----
-    let results: Result<Vec<HashMap<String, f64>>, String> = py.allow_threads(|| {
+    let results: Result<Vec<HashMap<String, f64>>, String> = py.detach(|| {
         owned
             .into_par_iter()
             .map(|item| {
                 if item.mz.len() != item.intensity.len() {
-                    return Err(format!("Spectrum {}: mz/intensity length mismatch", item.id));
+                    return Err(format!(
+                        "Spectrum {}: mz/intensity length mismatch",
+                        item.id
+                    ));
                 }
                 if item.seq_len == 0 {
                     return Ok(HashMap::new());
@@ -200,16 +207,12 @@ pub fn ms2_features_from_ms2spectra(
 
                 let key = (item.proforma.clone(), item.precursor_charge);
                 let empty: FragList = Vec::new();
-                let frags: &FragList = frag_cache
-                    .get(&key)
-                    .map(|x| x.as_ref())
-                    .unwrap_or(&empty);
-
+                let frags: &FragList = frag_cache.get(&key).map(|x| x.as_ref()).unwrap_or(&empty);
 
                 if frags.is_empty() {
                     return Ok(HashMap::new());
                 }
-                
+
                 // Parse peptide again for annotation call (cheap compared to fragment generation; you can cache peptide too later)
                 let peptide = match CompoundPeptidoformIon::pro_forma(&item.proforma, None) {
                     Ok(p) => p,
@@ -233,8 +236,6 @@ pub fn ms2_features_from_ms2spectra(
                     .collect();
 
                 spectrum.extend(peaks);
-
-
 
                 // Annotate against precomputed fragments
                 let annotated = spectrum.annotate(peptide, frags.as_slice(), &params, mode);
@@ -294,8 +295,14 @@ pub fn ms2_features_from_ms2spectra(
                 let matched_y = y_flags.iter().filter(|&&x| x).count();
 
                 let mut feats: HashMap<String, f64> = HashMap::new();
-                feats.insert("ln_explained_intensity".to_string(), (matched_intensity + pseudo).ln());
-                feats.insert("ln_total_intensity".to_string(), (total_intensity + pseudo).ln());
+                feats.insert(
+                    "ln_explained_intensity".to_string(),
+                    (matched_intensity + pseudo).ln(),
+                );
+                feats.insert(
+                    "ln_total_intensity".to_string(),
+                    (total_intensity + pseudo).ln(),
+                );
 
                 let explained_ratio = if total_intensity > 0.0 {
                     (matched_intensity / total_intensity + pseudo).ln()
@@ -328,10 +335,16 @@ pub fn ms2_features_from_ms2spectra(
                 );
 
                 feats.insert("matched_b_ions".to_string(), matched_b as f64);
-                feats.insert("matched_b_ions_pct".to_string(), matched_b as f64 / seq_len as f64);
+                feats.insert(
+                    "matched_b_ions_pct".to_string(),
+                    matched_b as f64 / seq_len as f64,
+                );
 
                 feats.insert("matched_y_ions".to_string(), matched_y as f64);
-                feats.insert("matched_y_ions_pct".to_string(), matched_y as f64 / seq_len as f64);
+                feats.insert(
+                    "matched_y_ions_pct".to_string(),
+                    matched_y as f64 / seq_len as f64,
+                );
 
                 feats.insert(
                     "matched_ions_pct".to_string(),

@@ -18,10 +18,10 @@ pub fn match_file_type(spectrum_path: &str) -> SpectrumFileType {
         MassSpectrometryFormat::ThermoRaw => SpectrumFileType::ThermoRaw,
         MassSpectrometryFormat::Unknown => {
             let extension = Path::new(&spectrum_path)
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_lowercase();
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_lowercase();
             match extension.as_str() {
                 "d" | "ms2" => SpectrumFileType::BrukerRaw,
                 _ => match (
@@ -33,7 +33,7 @@ pub fn match_file_type(spectrum_path: &str) -> SpectrumFileType {
                 },
             }
         }
-        _ => SpectrumFileType::Unknown
+        _ => SpectrumFileType::Unknown,
     }
 }
 

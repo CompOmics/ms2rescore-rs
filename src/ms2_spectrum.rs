@@ -3,9 +3,9 @@ use pyo3::prelude::*;
 use crate::precursor::Precursor;
 
 type MS2SpectrumReduceArgs = (String, Vec<f32>, Vec<f32>, Option<Precursor>);
-type MS2SpectrumReduceReturn = (PyObject, MS2SpectrumReduceArgs);
+type MS2SpectrumReduceReturn = (Py<PyAny>, MS2SpectrumReduceArgs);
 
-#[pyclass(module = "ms2rescore_rs", get_all, set_all)]
+#[pyclass(module = "ms2rescore_rs", get_all, set_all, from_py_object)]
 #[derive(Debug, Clone)]
 pub struct MS2Spectrum {
     pub identifier: String,
@@ -21,7 +21,12 @@ impl MS2Spectrum {
         intensity: Vec<f32>,
         precursor: Option<Precursor>,
     ) -> Self {
-        MS2Spectrum { identifier, mz, intensity, precursor }
+        MS2Spectrum {
+            identifier,
+            mz,
+            intensity,
+            precursor,
+        }
     }
 }
 
