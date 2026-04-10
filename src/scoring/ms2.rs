@@ -5,7 +5,7 @@ use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 use rayon::prelude::*;
 
-use crate::ms2_spectrum::MS2Spectrum;
+use crate::types::ms2_spectrum::MS2Spectrum;
 
 use ordered_float::OrderedFloat;
 use rustyms::annotation::model::FragmentationModel;
@@ -145,6 +145,7 @@ pub fn ms2_features_from_ms2spectra(
     let mode = parse_mass_mode(&mass_mode)?;
 
     // Matching parameters (tolerance etc.). Start with default; expose knobs later.
+    // TODO: Expose tolerance! mz range should be derived from spectrum, I guess?
     let params = rustyms::annotation::model::MatchingParameters::default();
 
     // ---- Precompute theoretical fragments per unique peptide+charge+model ----

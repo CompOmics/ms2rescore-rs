@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use mzdata::{params::ParamValue, prelude::*, MZReader};
 use rayon::prelude::*;
 
-use crate::ms2_spectrum::MS2Spectrum;
-use crate::precursor::Precursor;
+use crate::types::ms2_spectrum::MS2Spectrum;
+use crate::types::precursor::Precursor;
 
 impl From<&mzdata::spectrum::MultiLayerSpectrum> for Precursor {
     fn from(spectrum: &mzdata::spectrum::MultiLayerSpectrum) -> Self {
