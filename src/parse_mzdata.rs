@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use mzdata::{params::ParamValue, prelude::*, MZReader};
+use rayon::prelude::*;
 
 use crate::ms2_spectrum::MS2Spectrum;
 use crate::precursor::Precursor;
@@ -49,8 +50,11 @@ pub fn parse_precursor_info(
     spectrum_path: &str,
 ) -> Result<HashMap<String, Precursor>, std::io::Error> {
     let reader = MZReader::open_path(spectrum_path)?;
-    Ok(reader
+    let spectra: Vec<_> = reader
         .filter(|spectrum| spectrum.description.ms_level == 2)
+        .collect();
+    Ok(spectra
+        .into_par_iter()
         .filter_map(|spectrum| {
             spectrum.precursor().as_ref()?;
             Some((spectrum.description.id.clone(), Precursor::from(&spectrum)))
@@ -65,8 +69,11 @@ pub fn read_ms2_spectra(spectrum_path: &str) -> Result<Vec<MS2Spectrum>, std::io
         inner.set_centroiding(true);
     }
 
-    Ok(reader
+    let spectra: Vec<_> = reader
         .filter(|spectrum| spectrum.description.ms_level == 2)
+        .collect();
+    Ok(spectra
+        .into_par_iter()
         .map(MS2Spectrum::from)
         .collect::<Vec<MS2Spectrum>>())
 }

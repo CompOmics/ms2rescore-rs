@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use rayon::prelude::*;
 use timsrust::readers::SpectrumReaderError;
 
 use crate::ms2_spectrum::MS2Spectrum;
@@ -61,6 +62,7 @@ pub fn parse_precursor_info(
         .map_err(|e| std::io::Error::other(e.to_string()))?;
 
     let spectra = (0..reader.len())
+        .into_par_iter()
         .map(|index| match reader.get(index) {
             Ok(spectrum) => Ok(Some(spectrum)),
             Err(err) => handle_spectrum_reader_error(err).map(|_| None),
@@ -74,7 +76,7 @@ pub fn parse_precursor_info(
         .collect::<Vec<_>>();
 
     let precursor_info = spectra
-        .into_iter()
+        .into_par_iter()
         .filter_map(|spectrum| match spectrum.precursor {
             Some(precursor) => Some((spectrum.index.to_string(), Precursor::from(precursor))),
             None => None,
@@ -90,6 +92,7 @@ pub fn read_ms2_spectra(spectrum_path: &str) -> Result<Vec<MS2Spectrum>, std::io
         .map_err(|e| std::io::Error::other(e.to_string()))?;
 
     let spectra = (0..reader.len())
+        .into_par_iter()
         .map(|index| match reader.get(index) {
             Ok(spectrum) => Ok(Some(spectrum)),
             Err(err) => handle_spectrum_reader_error(err).map(|_| None),
@@ -102,5 +105,5 @@ pub fn read_ms2_spectra(spectrum_path: &str) -> Result<Vec<MS2Spectrum>, std::io
         .flatten()
         .collect::<Vec<_>>();
 
-    Ok(spectra.into_iter().map(MS2Spectrum::from).collect())
+    Ok(spectra.into_par_iter().map(MS2Spectrum::from).collect())
 }
