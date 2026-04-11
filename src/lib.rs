@@ -3,6 +3,7 @@ mod io;
 mod ms2pip;
 mod scoring;
 mod types;
+mod utils;
 
 use pyo3::prelude::*;
 
@@ -21,10 +22,7 @@ fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(io::get_precursor_info, m)?)?;
     m.add_function(wrap_pyfunction!(io::get_ms2_spectra, m)?)?;
     m.add_function(wrap_pyfunction!(annotation::annotate_ms2_spectra, m)?)?;
-    m.add_function(wrap_pyfunction!(
-        scoring::ms2::ms2_features_from_ms2spectra,
-        m
-    )?)?;
+    m.add_function(wrap_pyfunction!(scoring::ms2::score_ms2_spectra, m)?)?;
     m.add_function(wrap_pyfunction!(
         scoring::spectrum_prediction::ms2pip_features_from_prediction_peak_arrays,
         m
