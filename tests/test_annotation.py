@@ -263,6 +263,7 @@ class TestScoreMS2Spectra:
         results = score_ms2_spectra(
             spectra=[ann],
             seq_lens=[5],
+            active_ion_series=["b", "y"],
             calculate_hyperscore=True,
         )
 
@@ -297,6 +298,7 @@ class TestScoreMS2Spectra:
         results = score_ms2_spectra(
             spectra=[ann],
             seq_lens=[5],
+            active_ion_series=["b", "y"],
             calculate_hyperscore=False,
         )
 
@@ -328,6 +330,7 @@ class TestScoreMS2Spectra:
         results = score_ms2_spectra(
             spectra=[ann],
             seq_lens=[5],
+            active_ion_series=["b", "y"],
             calculate_hyperscore=False,
         )
 
@@ -350,6 +353,7 @@ class TestScoreMS2Spectra:
         results = score_ms2_spectra(
             spectra=[ann],
             seq_lens=[5],
+            active_ion_series=["b", "y"],
             calculate_hyperscore=False,
         )
 
@@ -362,6 +366,7 @@ class TestScoreMS2Spectra:
         results = score_ms2_spectra(
             spectra=[ann],
             seq_lens=[0],
+            active_ion_series=["b", "y"],
             calculate_hyperscore=False,
         )
 
@@ -389,6 +394,7 @@ class TestScoreMS2Spectra:
         results = score_ms2_spectra(
             spectra=annotated,
             seq_lens=[PEPTIDE_SEQ_LEN],
+            active_ion_series=["a", "b", "y"],
             calculate_hyperscore=True,
         )
 

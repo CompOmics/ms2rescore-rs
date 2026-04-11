@@ -56,12 +56,14 @@ impl FeatureNames {
 /// Compute MS2 scoring features from annotated spectra.
 ///
 /// Always emits features for all 6 primary ion series (a, b, c, x, y, z).
-/// Series not produced by the fragmentation model get NaN values.
+/// Series not in `active_ion_series` get NaN values.
+/// Pass the series that your fragmentation model produces, e.g. `["a", "b", "y"]` for CID/HCD.
 #[pyfunction]
 pub fn score_ms2_spectra(
     py: Python<'_>,
     spectra: Vec<Py<AnnotatedMS2Spectrum>>,
     seq_lens: Vec<usize>,
+    active_ion_series: Vec<String>,
     calculate_hyperscore: bool,
 ) -> PyResult<Vec<HashMap<String, f64>>> {
     let n = spectra.len();
@@ -71,6 +73,14 @@ pub fn score_ms2_spectra(
         ));
     }
 
+    // Determine active series from the fragmentation model (not from matched annotations)
+    let mut active = [false; 6];
+    for s in &active_ion_series {
+        if let Some(idx) = series_index(s) {
+            active[idx] = true;
+        }
+    }
+
     struct OwnedAnnotated {
         peak_intensities: Vec<f32>,
         peak_annotations: Vec<Vec<(usize, usize)>>, // (series_index, position)
@@ -78,9 +88,8 @@ pub fn score_ms2_spectra(
     }
 
     let mut owned: Vec<OwnedAnnotated> = Vec::with_capacity(n);
-    let mut active = [false; 6];
 
-    // Extract data and detect active series in a single pass (must hold GIL)
+    // Extract data (must hold GIL)
     for (i, spec_py) in spectra.iter().enumerate() {
         let spec_ref = spec_py.bind(py);
         let spec = spec_ref.borrow();
@@ -93,7 +102,6 @@ pub fn score_ms2_spectra(
                 anns.iter()
                     .filter_map(|a| {
                         let idx = series_index(&a.series)?;
-                        active[idx] = true;
                         Some((idx, a.position))
                     })
                     .collect()
