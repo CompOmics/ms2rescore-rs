@@ -1,4 +1,5 @@
 mod file_types;
+mod isotope_envelope;
 mod ms2_spectrum;
 mod parse_mzdata;
 mod parse_timsrust;
@@ -10,6 +11,7 @@ use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 
 use file_types::{match_file_type, SpectrumFileType};
+use isotope_envelope::IsotopeEnvelope;
 use ms2_spectrum::MS2Spectrum;
 use precursor::Precursor;
 
@@ -61,13 +63,54 @@ pub fn get_ms2_spectra(spectrum_path: String) -> PyResult<Vec<ms2_spectrum::MS2S
     }
 }
 
+/// Extract isotope envelopes from MS1 scans for all MS2 precursors.
+///
+/// For each MS2 spectrum in the file, finds the preceding MS1 scan and
+/// extracts the isotope envelope (M0, M1, M2, ...) around the precursor m/z.
+///
+/// Args:
+///     spectrum_path: Path to spectrum file (.RAW, .mzML, etc.)
+///     n_peaks: Number of isotope peaks to extract (default: 4)
+///     ppm_tolerance: Mass tolerance for peak matching in ppm (default: 10.0)
+///
+/// Returns:
+///     List of IsotopeEnvelope objects, one per MS2 spectrum.
+#[pyfunction]
+#[pyo3(signature = (spectrum_path, n_peaks=4, ppm_tolerance=20.0))]
+pub fn get_isotope_envelopes(
+    spectrum_path: String,
+    n_peaks: usize,
+    ppm_tolerance: f64,
+) -> PyResult<Vec<IsotopeEnvelope>> {
+    let file_type = match_file_type(&spectrum_path);
+
+    let envelopes = match file_type {
+        SpectrumFileType::MascotGenericFormat
+        | SpectrumFileType::MzML
+        | SpectrumFileType::MzMLb
+        | SpectrumFileType::ThermoRaw => {
+            isotope_envelope::extract_envelopes_mzdata(&spectrum_path, n_peaks, ppm_tolerance)
+        }
+        _ => return Err(PyValueError::new_err(
+            "Isotope envelope extraction only supported for mzML, mzMLb, and Thermo .RAW files"
+        )),
+    };
+
+    match envelopes {
+        Ok(envelopes) => Ok(envelopes),
+        Err(e) => Err(PyException::new_err(e.to_string())),
+    }
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Precursor>()?;
     m.add_class::<MS2Spectrum>()?;
+    m.add_class::<IsotopeEnvelope>()?;
     m.add_function(wrap_pyfunction!(is_supported_file_type, m)?)?;
     m.add_function(wrap_pyfunction!(get_precursor_info, m)?)?;
     m.add_function(wrap_pyfunction!(get_ms2_spectra, m)?)?;
+    m.add_function(wrap_pyfunction!(get_isotope_envelopes, m)?)?;
     Ok(())
 }
