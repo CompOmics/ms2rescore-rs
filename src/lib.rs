@@ -1,3 +1,4 @@
+mod annotation;
 mod io;
 mod ms2pip;
 mod scoring;
@@ -19,6 +20,7 @@ fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(io::is_supported_file_type, m)?)?;
     m.add_function(wrap_pyfunction!(io::get_precursor_info, m)?)?;
     m.add_function(wrap_pyfunction!(io::get_ms2_spectra, m)?)?;
+    m.add_function(wrap_pyfunction!(annotation::annotate_ms2_spectra, m)?)?;
     m.add_function(wrap_pyfunction!(
         scoring::ms2::ms2_features_from_ms2spectra,
         m
