@@ -5,6 +5,7 @@ mod types;
 
 use pyo3::prelude::*;
 
+use types::annotation::{AnnotatedMS2Spectrum, FragmentAnnotation};
 use types::ms2_spectrum::MS2Spectrum;
 use types::precursor::Precursor;
 
@@ -13,6 +14,8 @@ use types::precursor::Precursor;
 fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Precursor>()?;
     m.add_class::<MS2Spectrum>()?;
+    m.add_class::<FragmentAnnotation>()?;
+    m.add_class::<AnnotatedMS2Spectrum>()?;
     m.add_function(wrap_pyfunction!(io::is_supported_file_type, m)?)?;
     m.add_function(wrap_pyfunction!(io::get_precursor_info, m)?)?;
     m.add_function(wrap_pyfunction!(io::get_ms2_spectra, m)?)?;
