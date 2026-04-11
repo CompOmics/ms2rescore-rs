@@ -1,4 +1,5 @@
-/// Compute ln(n!) in a numerically stable way.
+/// Compute ln(n!). For typical peptide-length inputs (n < 50) the
+/// iterative sum is fast enough; a lookup table is not warranted.
 pub fn ln_factorial(n: usize) -> f64 {
     (1..=n).map(|k| (k as f64).ln()).sum()
 }
