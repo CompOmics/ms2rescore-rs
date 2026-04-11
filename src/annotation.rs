@@ -75,14 +75,12 @@ fn parse_ion_series_and_index(ion: &str) -> Option<(char, usize)> {
 
 /// Parse charge from a rustyms Fragment's charge field.
 fn extract_fragment_charge(frag: &rustyms::fragment::Fragment) -> usize {
-    frag.charge
-        .value
-        .abs()
-        .round() as usize
+    frag.charge.value.unsigned_abs()
 }
 
 /// Annotate MS2 spectra with theoretical fragment ions.
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 pub fn annotate_ms2_spectra(
     py: Python<'_>,
     spectra: Vec<Py<MS2Spectrum>>,
@@ -192,8 +190,8 @@ pub fn annotate_ms2_spectra(
 
                 let n_peaks = item.mz.len();
 
-                // For spectra with no valid peptide/charge, return empty annotations
-                if item.seq_len == 0 || item.precursor_charge <= 0 {
+                // For spectra with no peaks, no valid peptide, or no charge, return empty annotations
+                if n_peaks == 0 || item.seq_len == 0 || item.precursor_charge <= 0 {
                     return Ok(AnnotatedMS2Spectrum {
                         identifier: item.id,
                         mz: item.mz_f32,
@@ -254,7 +252,6 @@ pub fn annotate_ms2_spectra(
                 // Convert rustyms AnnotatedSpectrum to our peak-centric representation
                 let peak_annotations: Vec<Vec<FragmentAnnotation>> = annotated
                     .spectrum()
-                    .iter()
                     .map(|peak| {
                         peak.annotation
                             .iter()

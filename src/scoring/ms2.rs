@@ -26,7 +26,7 @@ fn hyperscore(n_nterm: usize, n_cterm: usize, sum_nterm: f64, sum_cterm: f64) ->
 
 /// Determine which ion series are "active" — i.e., have at least one annotation
 /// across all spectra. Series not present in any annotation get NaN features.
-fn active_series(spectra: &[AnnotatedMS2Spectrum]) -> HashMap<String, bool> {
+fn active_series(spectra: &[&AnnotatedMS2Spectrum]) -> HashMap<String, bool> {
     let mut active: HashMap<String, bool> = ION_SERIES
         .iter()
         .map(|s| (s.to_string(), false))
@@ -73,8 +73,8 @@ pub fn score_ms2_spectra(
     let mut owned: Vec<OwnedAnnotated> = Vec::with_capacity(n);
     let mut all_spectra_ref: Vec<pyo3::PyRef<'_, AnnotatedMS2Spectrum>> = Vec::with_capacity(n);
 
-    for i in 0..n {
-        let spec_ref = spectra[i].bind(py);
+    for spec_py in &spectra {
+        let spec_ref = spec_py.bind(py);
         let spec = spec_ref.borrow();
         all_spectra_ref.push(spec);
     }

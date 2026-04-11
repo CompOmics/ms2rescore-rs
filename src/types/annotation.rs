@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use crate::types::precursor::Precursor;
 
 /// A single fragment annotation on a peak.
-#[pyclass(module = "ms2rescore_rs", get_all)]
+#[pyclass(module = "ms2rescore_rs", get_all, from_py_object)]
 #[derive(Debug, Clone)]
 pub struct FragmentAnnotation {
     /// Ion series: "a", "b", "c", "x", "y", "z"
@@ -38,7 +38,7 @@ impl FragmentAnnotation {
 /// Contains the original spectrum data alongside peak-centric annotations.
 /// Each entry in `peak_annotations` corresponds to the peak at the same index
 /// in `mz` / `intensity`.
-#[pyclass(module = "ms2rescore_rs", get_all)]
+#[pyclass(module = "ms2rescore_rs", get_all, from_py_object)]
 #[derive(Debug, Clone)]
 pub struct AnnotatedMS2Spectrum {
     /// Spectrum identifier
