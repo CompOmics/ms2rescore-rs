@@ -2,6 +2,14 @@ use pyo3::prelude::*;
 
 use crate::types::precursor::Precursor;
 
+type AnnotatedMS2SpectrumReduceArgs = (
+    String,
+    Vec<f32>,
+    Vec<f32>,
+    Option<Precursor>,
+    Vec<Vec<FragmentAnnotation>>,
+);
+
 /// A single fragment annotation on a peak.
 #[pyclass(module = "ms2rescore_rs", get_all, from_py_object)]
 #[derive(Debug, Clone)]
@@ -30,6 +38,16 @@ impl FragmentAnnotation {
             "FragmentAnnotation(series='{}', position={}, charge={})",
             self.series, self.position, self.charge
         )
+    }
+
+    pub fn __reduce__(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<(Py<PyAny>, (String, usize, usize))> {
+        let cls = py
+            .import("ms2rescore_rs")?
+            .getattr("FragmentAnnotation")?;
+        Ok((cls.into(), (self.series.clone(), self.position, self.charge)))
     }
 }
 
@@ -86,5 +104,24 @@ impl AnnotatedMS2Spectrum {
             self.mz.len(),
             n_annotated
         )
+    }
+
+    pub fn __reduce__(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<(Py<PyAny>, AnnotatedMS2SpectrumReduceArgs)> {
+        let cls = py
+            .import("ms2rescore_rs")?
+            .getattr("AnnotatedMS2Spectrum")?;
+        Ok((
+            cls.into(),
+            (
+                self.identifier.clone(),
+                self.mz.clone(),
+                self.intensity.clone(),
+                self.precursor.clone(),
+                self.peak_annotations.clone(),
+            ),
+        ))
     }
 }

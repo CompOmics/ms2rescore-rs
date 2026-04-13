@@ -27,5 +27,13 @@ fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
         scoring::spectrum_prediction::ms2pip_features_from_prediction_peak_arrays,
         m
     )?)?;
+    m.add_function(wrap_pyfunction!(
+        ms2pip::feature_vectors::ms2pip_compute_features,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        ms2pip::theoretical_mz::ms2pip_compute_theoretical_mz,
+        m
+    )?)?;
     Ok(())
 }
