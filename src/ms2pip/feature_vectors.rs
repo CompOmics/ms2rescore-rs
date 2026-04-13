@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 use rustyms::prelude::CompoundPeptidoformIon;
 
-use crate::utils::extract_charge;
+use crate::utils::{aa_to_ms2pip_index, extract_charge};
 
 /// Number of features per cleavage site.
 const N_FEATURES: usize = 139;
@@ -24,33 +24,6 @@ const AA_PROPERTIES: [[u32; N_AA]; 4] = [
     // pI (isoelectric point)
     [32, 23, 0, 4, 27, 32, 48, 32, 69, 29, 26, 35, 28, 79, 29, 28, 31, 31, 28],
 ];
-
-/// Map a single-letter AA code to its ms2pip index (0..18).
-/// L is mapped to I (index 7). Returns None for unknown AAs.
-fn aa_to_index(aa: char) -> Option<usize> {
-    match aa {
-        'A' => Some(0),
-        'C' => Some(1),
-        'D' => Some(2),
-        'E' => Some(3),
-        'F' => Some(4),
-        'G' => Some(5),
-        'H' => Some(6),
-        'I' | 'L' => Some(7),
-        'K' => Some(8),
-        'M' => Some(9),
-        'N' => Some(10),
-        'P' => Some(11),
-        'Q' => Some(12),
-        'R' => Some(13),
-        'S' => Some(14),
-        'T' => Some(15),
-        'V' => Some(16),
-        'W' => Some(17),
-        'Y' => Some(18),
-        _ => None,
-    }
-}
 
 /// Compute floor-based quartiles matching the C code.
 /// Input must be a sorted slice.
@@ -92,12 +65,8 @@ fn parse_proforma(proforma: &str) -> Result<(Vec<usize>, usize), String> {
     for peptidoform in compound.peptidoforms() {
         for pos in peptidoform.sequence() {
             let aa = pos.aminoacid.aminoacid();
-            let aa_str = aa.to_string();
-            let aa_char = aa_str.chars().next().ok_or_else(|| {
-                format!("Empty amino acid string in '{proforma}'")
-            })?;
-            let idx = aa_to_index(aa_char).ok_or_else(|| {
-                format!("Unknown amino acid '{aa_char}' in '{proforma}'")
+            let idx = aa_to_ms2pip_index(aa).ok_or_else(|| {
+                format!("Unsupported amino acid '{aa}' in '{proforma}'")
             })?;
             aa_indices.push(idx);
         }
@@ -307,15 +276,6 @@ pub fn ms2pip_compute_features(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_aa_to_index() {
-        assert_eq!(aa_to_index('A'), Some(0));
-        assert_eq!(aa_to_index('L'), Some(7)); // L maps to I
-        assert_eq!(aa_to_index('I'), Some(7));
-        assert_eq!(aa_to_index('Y'), Some(18));
-        assert_eq!(aa_to_index('X'), None);
-    }
 
     #[test]
     fn test_quartiles() {

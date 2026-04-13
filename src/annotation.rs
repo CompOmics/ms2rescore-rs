@@ -7,7 +7,7 @@ use rayon::prelude::*;
 
 use crate::types::annotation::{AnnotatedMS2Spectrum, FragmentAnnotation};
 use crate::types::ms2_spectrum::MS2Spectrum;
-use crate::utils::parse_ion_series_and_index;
+use crate::utils::parse_fragment;
 
 use ordered_float::OrderedFloat;
 use rustyms::annotation::model::FragmentationModel;
@@ -55,10 +55,6 @@ fn parse_tolerance(
     }
 }
 
-
-fn extract_fragment_charge(frag: &rustyms::fragment::Fragment) -> usize {
-    frag.charge.value.unsigned_abs()
-}
 
 /// Annotate MS2 spectra with theoretical fragment ions.
 #[pyfunction]
@@ -209,9 +205,7 @@ pub fn annotate_ms2_spectra(
                         peak.annotation
                             .iter()
                             .filter_map(|frag| {
-                                let ion_str = frag.ion.to_string();
-                                let (series, position) = parse_ion_series_and_index(&ion_str)?;
-                                let charge = extract_fragment_charge(frag);
+                                let (series, position, charge) = parse_fragment(frag)?;
                                 Some(FragmentAnnotation {
                                     series: series.to_string(),
                                     position,

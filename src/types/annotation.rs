@@ -2,6 +2,14 @@ use pyo3::prelude::*;
 
 use crate::types::precursor::Precursor;
 
+type AnnotatedMS2SpectrumReduceArgs = (
+    String,
+    Vec<f32>,
+    Vec<f32>,
+    Option<Precursor>,
+    Vec<Vec<FragmentAnnotation>>,
+);
+
 /// A single fragment annotation on a peak.
 #[pyclass(module = "ms2rescore_rs", get_all, from_py_object)]
 #[derive(Debug, Clone)]
@@ -101,16 +109,7 @@ impl AnnotatedMS2Spectrum {
     pub fn __reduce__(
         &self,
         py: Python<'_>,
-    ) -> PyResult<(
-        Py<PyAny>,
-        (
-            String,
-            Vec<f32>,
-            Vec<f32>,
-            Option<Precursor>,
-            Vec<Vec<FragmentAnnotation>>,
-        ),
-    )> {
+    ) -> PyResult<(Py<PyAny>, AnnotatedMS2SpectrumReduceArgs)> {
         let cls = py
             .import("ms2rescore_rs")?
             .getattr("AnnotatedMS2Spectrum")?;

@@ -7,27 +7,7 @@ use rayon::prelude::*;
 use rustyms::prelude::CompoundPeptidoformIon;
 
 use crate::annotation::{parse_fragmentation_model, parse_mass_mode};
-use crate::utils::{extract_charge, parse_ion_series_and_index};
-
-/// Map a rustyms Fragment to its ms2pip ion type string (e.g. "b", "y", "b2").
-/// Returns None for non-backbone ions.
-fn fragment_ion_type(frag: &rustyms::fragment::Fragment) -> Option<String> {
-    let ion_str = frag.ion.to_string();
-    let (series, _) = parse_ion_series_and_index(&ion_str)?;
-    let charge = frag.charge.value.unsigned_abs();
-    if charge <= 1 {
-        Some(series.to_string())
-    } else {
-        Some(format!("{series}{charge}"))
-    }
-}
-
-/// Extract the 1-indexed ion position from a fragment.
-fn fragment_position(frag: &rustyms::fragment::Fragment) -> Option<usize> {
-    let ion_str = frag.ion.to_string();
-    let (_, position) = parse_ion_series_and_index(&ion_str)?;
-    Some(position)
-}
+use crate::utils::{extract_charge, parse_fragment};
 
 /// Compute theoretical m/z values for fragment ions.
 ///
@@ -79,20 +59,27 @@ pub fn ms2pip_compute_theoretical_mz(
                     .collect();
 
                 for frag in &frags {
-                    let ion_type = match fragment_ion_type(frag) {
-                        Some(it) if mz_map.contains_key(&it) => it,
-                        _ => continue,
-                    };
-                    let position = match fragment_position(frag) {
-                        Some(p) if p >= 1 && p <= n_ions => p,
-                        _ => continue,
+                    let (series, position, frag_charge) = match parse_fragment(frag) {
+                        Some(info) => info,
+                        None => continue,
                     };
 
-                    if let Some(mz) = frag.mz(mode) {
+                    if position < 1 || position > n_ions {
+                        continue;
+                    }
+
+                    let ion_key = if frag_charge <= 1 {
+                        series.to_string()
+                    } else {
+                        format!("{series}{frag_charge}")
+                    };
+
+                    if let Some(arr) = mz_map.get_mut(&ion_key) {
                         let idx = position - 1;
-                        let arr = mz_map.get_mut(&ion_type).unwrap();
-                        if arr[idx] == 0.0 {
-                            arr[idx] = mz.value;
+                        if let Some(mz) = frag.mz(mode) {
+                            if arr[idx] == 0.0 {
+                                arr[idx] = mz.value;
+                            }
                         }
                     }
                 }
