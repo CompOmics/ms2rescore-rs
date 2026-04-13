@@ -57,21 +57,21 @@ class TestMs2pipComputeFeatures:
             )
 
     def test_ion_lengths(self):
-        """Check n_length and c_length per ion."""
+        """Check n_length and c_length per ion (C code: n=i+1, c=peplen-i)."""
         features = ms2pip_compute_features(["ACDEF/2"])
         arr = features[0].reshape(-1, N_FEATURES)
 
-        # Ion 0: n_len=1, c_len=4
+        # Ion 0: n_len=1, c_len=5
         assert arr[0, 27] == 1.0
-        assert arr[0, 28] == 4.0
+        assert arr[0, 28] == 5.0
 
-        # Ion 1: n_len=2, c_len=3
+        # Ion 1: n_len=2, c_len=4
         assert arr[1, 27] == 2.0
-        assert arr[1, 28] == 3.0
+        assert arr[1, 28] == 4.0
 
-        # Ion 3: n_len=4, c_len=1
+        # Ion 3: n_len=4, c_len=2
         assert arr[3, 27] == 4.0
-        assert arr[3, 28] == 1.0
+        assert arr[3, 28] == 2.0
 
     def test_aa_counts(self):
         """AA counts should sum to peptide length for each ion."""
