@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use rayon::prelude::*;
 use timsrust::readers::SpectrumReaderError;
 
-use crate::ms2_spectrum::MS2Spectrum;
-use crate::precursor::Precursor;
+use crate::types::ms2_spectrum::MS2Spectrum;
+use crate::types::precursor::Precursor;
 
 impl From<timsrust::Precursor> for Precursor {
     fn from(precursor: timsrust::Precursor) -> Self {

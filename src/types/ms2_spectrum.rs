@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::precursor::Precursor;
+use crate::types::precursor::Precursor;
 
 type MS2SpectrumReduceArgs = (String, Vec<f32>, Vec<f32>, Option<Precursor>);
 type MS2SpectrumReduceReturn = (Py<PyAny>, MS2SpectrumReduceArgs);

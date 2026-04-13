@@ -1,6 +1,4 @@
-// src/ms2pip_features.rs
-//
-// MS2PIP feature calculation in Rust (batch + flexible NumPy inputs):
+// Spectrum prediction comparison features (batch + flexible NumPy inputs):
 //
 // - Minimize peak memory usage by processing in blocks, and keeping f32 arrays only
 //   while holding the GIL.
@@ -32,7 +30,7 @@ fn clip_min_f32(x: f32) -> f64 {
 #[inline]
 fn pow2_unlog(x: f64) -> f64 {
     // matches Python: 2**x - 0.001
-    (2.0_f64).powf(x) - 0.001
+    x.exp2() - 0.001
 }
 
 #[inline]
