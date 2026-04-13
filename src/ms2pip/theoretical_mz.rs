@@ -4,7 +4,6 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use rayon::prelude::*;
 
-use rustyms::chemistry::MassMode;
 use rustyms::prelude::CompoundPeptidoformIon;
 
 use crate::annotation::{parse_fragmentation_model, parse_mass_mode};
@@ -103,5 +102,5 @@ pub fn ms2pip_compute_theoretical_mz(
             .collect()
     });
 
-    results.map_err(|e| PyValueError::new_err(e))
+    results.map_err(PyValueError::new_err)
 }

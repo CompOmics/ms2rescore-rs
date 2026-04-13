@@ -12,13 +12,6 @@ const N_FEATURES: usize = 139;
 /// Number of standard amino acids used in feature computation.
 const N_AA: usize = 19;
 
-/// AA single-letter codes in ms2pip index order.
-/// L is mapped to I (index 7).
-const AA_CHARS: [char; N_AA] = [
-    'A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W',
-    'Y',
-];
-
 /// 4 amino acid property tables, each indexed by AA index (0..18).
 /// Order: basicity, helicity, hydrophobicity, pI.
 const AA_PROPERTIES: [[u32; N_AA]; 4] = [
