@@ -4,6 +4,8 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 use rustyms::prelude::CompoundPeptidoformIon;
 
+use crate::utils::extract_charge;
+
 /// Number of features per cleavage site.
 const N_FEATURES: usize = 139;
 
@@ -81,13 +83,7 @@ fn parse_proforma(proforma: &str) -> Result<(Vec<usize>, usize), String> {
     let compound = CompoundPeptidoformIon::pro_forma(proforma, None)
         .map_err(|e| format!("Failed to parse ProForma '{proforma}': {e}"))?;
 
-    // Extract charge from the parsed peptidoform's charge carriers
-    let charge = compound
-        .peptidoforms()
-        .next()
-        .and_then(|pf| pf.get_charge_carriers())
-        .map(|cc| cc.charge().value.unsigned_abs())
-        .filter(|&c| c > 0)
+    let charge = extract_charge(&compound)
         .ok_or_else(|| format!("No charge state found in '{proforma}'. MS2PIP requires a charge (e.g. 'PEPTIDE/2')."))?;
 
     // Extract amino acid sequence — must be exactly one peptidoform

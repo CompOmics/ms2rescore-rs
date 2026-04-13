@@ -7,6 +7,7 @@ use rayon::prelude::*;
 
 use crate::types::annotation::{AnnotatedMS2Spectrum, FragmentAnnotation};
 use crate::types::ms2_spectrum::MS2Spectrum;
+use crate::utils::parse_ion_series_and_index;
 
 use ordered_float::OrderedFloat;
 use rustyms::annotation::model::FragmentationModel;
@@ -54,29 +55,6 @@ fn parse_tolerance(
     }
 }
 
-/// Parse an ion string like "b5", "y7", "c3", "z12", possibly with extra suffixes.
-/// Works on ASCII bytes to avoid heap allocations.
-fn parse_ion_series_and_index(ion: &str) -> Option<(char, usize)> {
-    let bytes = ion.trim().as_bytes();
-    if bytes.is_empty() {
-        return None;
-    }
-    let series = bytes[0] as char;
-    if !matches!(series, 'a' | 'b' | 'c' | 'x' | 'y' | 'z') {
-        return None;
-    }
-    let digit_end = bytes[1..]
-        .iter()
-        .position(|b| !b.is_ascii_digit())
-        .unwrap_or(bytes.len() - 1);
-    if digit_end == 0 {
-        return None;
-    }
-    // Safety: we verified these are ASCII digits
-    let digits = std::str::from_utf8(&bytes[1..1 + digit_end]).ok()?;
-    let idx = digits.parse::<usize>().ok()?;
-    Some((series, idx))
-}
 
 fn extract_fragment_charge(frag: &rustyms::fragment::Fragment) -> usize {
     frag.charge.value.unsigned_abs()
