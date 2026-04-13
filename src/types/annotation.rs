@@ -31,6 +31,16 @@ impl FragmentAnnotation {
             self.series, self.position, self.charge
         )
     }
+
+    pub fn __reduce__(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<(Py<PyAny>, (String, usize, usize))> {
+        let cls = py
+            .import("ms2rescore_rs")?
+            .getattr("FragmentAnnotation")?;
+        Ok((cls.into(), (self.series.clone(), self.position, self.charge)))
+    }
 }
 
 /// An MS2 spectrum annotated with fragment ion assignments.
@@ -86,5 +96,33 @@ impl AnnotatedMS2Spectrum {
             self.mz.len(),
             n_annotated
         )
+    }
+
+    pub fn __reduce__(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<(
+        Py<PyAny>,
+        (
+            String,
+            Vec<f32>,
+            Vec<f32>,
+            Option<Precursor>,
+            Vec<Vec<FragmentAnnotation>>,
+        ),
+    )> {
+        let cls = py
+            .import("ms2rescore_rs")?
+            .getattr("AnnotatedMS2Spectrum")?;
+        Ok((
+            cls.into(),
+            (
+                self.identifier.clone(),
+                self.mz.clone(),
+                self.intensity.clone(),
+                self.precursor.clone(),
+                self.peak_annotations.clone(),
+            ),
+        ))
     }
 }
