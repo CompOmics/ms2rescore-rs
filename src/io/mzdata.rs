@@ -10,21 +10,24 @@ impl From<&mzdata::spectrum::MultiLayerSpectrum> for Precursor {
     fn from(spectrum: &mzdata::spectrum::MultiLayerSpectrum) -> Self {
         let precursor = &spectrum.precursor();
         match precursor {
-            Some(precursor) => Precursor {
-                mz: precursor.ions[0].mz,
-                rt: spectrum
-                    .description
-                    .acquisition
-                    .first_scan()
-                    .map(|s| s.start_time)
-                    .unwrap_or(0.0),
-                im: get_im_from_spectrum_description(spectrum)
-                    .or(get_im_from_selected_ion(spectrum))
-                    .or(get_im_from_first_scan(spectrum))
-                    .unwrap_or(0.0),
-                charge: get_charge_from_spectrum(spectrum).unwrap_or(0),
-                intensity: precursor.ions[0].intensity as f64,
-            },
+            Some(precursor) => {
+                let first_ion = precursor.ions.first();
+                Precursor {
+                    mz: first_ion.map(|i| i.mz).unwrap_or(0.0),
+                    rt: spectrum
+                        .description
+                        .acquisition
+                        .first_scan()
+                        .map(|s| s.start_time)
+                        .unwrap_or(0.0),
+                    im: get_im_from_spectrum_description(spectrum)
+                        .or(get_im_from_selected_ion(spectrum))
+                        .or(get_im_from_first_scan(spectrum))
+                        .unwrap_or(0.0),
+                    charge: get_charge_from_spectrum(spectrum).unwrap_or(0),
+                    intensity: first_ion.map(|i| i.intensity as f64).unwrap_or(0.0),
+                }
+            }
             None => Precursor::default(),
         }
     }
