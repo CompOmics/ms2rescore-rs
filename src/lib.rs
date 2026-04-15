@@ -35,5 +35,9 @@ fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
         ms2pip::theoretical_mz::ms2pip_compute_theoretical_mz,
         m
     )?)?;
+    m.add_function(wrap_pyfunction!(
+        ms2pip::targets::ms2pip_extract_targets,
+        m
+    )?)?;
     Ok(())
 }
