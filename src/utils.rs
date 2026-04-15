@@ -1,6 +1,20 @@
+use rustyms::annotation::model::FragmentationModel;
+use rustyms::chemistry::MassMode;
 use rustyms::fragment::{Fragment, FragmentType};
 use rustyms::prelude::CompoundPeptidoformIon;
+use rustyms::quantities::{Tolerance, WithinTolerance};
 use rustyms::sequence::AminoAcid;
+use rustyms::system::f64::MassOverCharge;
+use rustyms::system::isize::Charge;
+use rustyms::system::mass_over_charge::thomson;
+
+#[derive(Clone, Copy, Debug)]
+pub struct CachedFragment {
+    pub series: char,
+    pub position: usize,
+    pub charge: usize,
+    pub mz: f64,
+}
 
 /// Compute ln(n!). For typical peptide-length inputs (n < 50) the
 /// iterative sum is fast enough; a lookup table is not warranted.
@@ -25,15 +39,69 @@ pub fn parse_fragment(frag: &Fragment) -> Option<(char, usize, usize)> {
     Some((series, pos.series_number, charge))
 }
 
-/// Extract the precursor charge from a parsed CompoundPeptidoformIon.
+/// Extract the precursor charge from a parsed peptidoform.
 /// Returns None if no charge carriers are present.
-pub fn extract_charge(compound: &CompoundPeptidoformIon) -> Option<usize> {
-    compound
+pub fn extract_charge(peptidoform: &CompoundPeptidoformIon) -> Option<usize> {
+    peptidoform
         .peptidoforms()
         .next()
         .and_then(|pf| pf.get_charge_carriers())
         .map(|cc| cc.charge().value.unsigned_abs())
         .filter(|&c| c > 0)
+}
+
+pub fn build_theoretical_fragments(
+    peptidoform: &CompoundPeptidoformIon,
+    max_charge: Charge,
+    model: &FragmentationModel,
+    mode: MassMode,
+) -> Vec<CachedFragment> {
+    peptidoform
+        .generate_theoretical_fragments(max_charge, model)
+        .into_iter()
+        .filter_map(|frag| {
+            let (series, position, charge) = parse_fragment(&frag)?;
+            let mz = frag.mz(mode)?.value;
+            Some(CachedFragment {
+                series,
+                position,
+                charge,
+                mz,
+            })
+        })
+        .collect()
+}
+
+pub fn search_sorted_mz(
+    mz_values: &[f32],
+    query_mz: f64,
+    tolerance: &Tolerance<MassOverCharge>,
+) -> Option<usize> {
+    if mz_values.is_empty() {
+        return None;
+    }
+
+    let index = mz_values
+        .binary_search_by(|mz| (*mz as f64).total_cmp(&query_mz))
+        .unwrap_or_else(|i| i);
+
+    let start = index.saturating_sub(1);
+    let end = (index + 1).min(mz_values.len() - 1);
+    let query = MassOverCharge::new::<thomson>(query_mz);
+
+    let mut closest: Option<(usize, MassOverCharge)> = None;
+    let mut closest_ppm = f64::INFINITY;
+
+    for (i, mz) in mz_values.iter().enumerate().take(end + 1).skip(start) {
+        let observed = MassOverCharge::new::<thomson>(*mz as f64);
+        let ppm = observed.ppm(query).value;
+        if ppm < closest_ppm {
+            closest_ppm = ppm;
+            closest = Some((i, observed));
+        }
+    }
+
+    closest.and_then(|(index, observed)| tolerance.within(&observed, &query).then_some(index))
 }
 
 /// Map a rustyms AminoAcid to its ms2pip index (0..18).
@@ -105,5 +173,21 @@ mod tests {
         assert_eq!(aa_to_ms2pip_index(AminoAcid::Isoleucine), Some(7));
         assert_eq!(aa_to_ms2pip_index(AminoAcid::Tyrosine), Some(18));
         assert_eq!(aa_to_ms2pip_index(AminoAcid::Unknown), None);
+    }
+
+    #[test]
+    fn test_search_sorted_mz_absolute() {
+        let mz = [100.0_f32, 200.0, 300.0];
+        let tol = Tolerance::new_absolute(MassOverCharge::new::<thomson>(0.02));
+        assert_eq!(search_sorted_mz(&mz, 200.01, &tol), Some(1));
+        assert_eq!(search_sorted_mz(&mz, 200.05, &tol), None);
+    }
+
+    #[test]
+    fn test_search_sorted_mz_ppm() {
+        let mz = [100.0_f32, 200.0, 300.0];
+        let tol = Tolerance::new_ppm(10.0);
+        assert_eq!(search_sorted_mz(&mz, 200.001, &tol), Some(1));
+        assert_eq!(search_sorted_mz(&mz, 200.01, &tol), None);
     }
 }

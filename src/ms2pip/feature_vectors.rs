@@ -48,14 +48,14 @@ fn quartiles_with_denom(sorted: &[u32], denom: usize) -> [u32; 5] {
 /// Extract amino acid indices and charge from a ProForma string.
 /// Returns (aa_indices, charge). Modified residues are mapped to their base AA.
 fn parse_proforma(proforma: &str) -> Result<(Vec<usize>, usize), String> {
-    let compound = CompoundPeptidoformIon::pro_forma(proforma, None)
+    let peptidoform = CompoundPeptidoformIon::pro_forma(proforma, None)
         .map_err(|e| format!("Failed to parse ProForma '{proforma}': {e}"))?;
 
-    let charge = extract_charge(&compound)
+    let charge = extract_charge(&peptidoform)
         .ok_or_else(|| format!("No charge state found in '{proforma}'. MS2PIP requires a charge (e.g. 'PEPTIDE/2')."))?;
 
     // Extract amino acid sequence — must be exactly one peptidoform
-    let peptidoform_ions = compound.peptidoform_ions();
+    let peptidoform_ions = peptidoform.peptidoform_ions();
     if peptidoform_ions.len() != 1 {
         return Err(format!(
             "Expected exactly 1 peptidoform ion in '{proforma}', found {}",
@@ -64,8 +64,8 @@ fn parse_proforma(proforma: &str) -> Result<(Vec<usize>, usize), String> {
     }
 
     let mut aa_indices = Vec::new();
-    for peptidoform in compound.peptidoforms() {
-        for pos in peptidoform.sequence() {
+    for peptide in peptidoform.peptidoforms() {
+        for pos in peptide.sequence() {
             let aa = pos.aminoacid.aminoacid();
             let idx = aa_to_ms2pip_index(aa).ok_or_else(|| {
                 format!("Unsupported amino acid '{aa}' in '{proforma}'")
