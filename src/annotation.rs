@@ -81,7 +81,6 @@ pub fn annotate_ms2_spectra(
         mz_f32: Vec<f32>,
         intensity_f32: Vec<f32>,
         precursor: Option<crate::types::precursor::Precursor>,
-        seq_len: usize,
         precursor_charge: i32,
         proforma: String,
     }
@@ -110,17 +109,11 @@ pub fn annotate_ms2_spectra(
             .unwrap_or(&proformas[i])
             .to_string();
 
-        let seq_len = CompoundPeptidoformIon::pro_forma(&proforma, None)
-            .ok()
-            .and_then(|cpf| cpf.peptidoforms().next().map(|pf| pf.sequence().len()))
-            .unwrap_or(0);
-
         owned.push(OwnedSpec {
             id: spec.identifier.clone(),
             mz_f32: spec.mz.clone(),
             intensity_f32: spec.intensity.clone(),
             precursor: spec.precursor.clone(),
-            seq_len,
             precursor_charge: spec
                 .precursor
                 .as_ref()
@@ -136,7 +129,11 @@ pub fn annotate_ms2_spectra(
     let params = rustyms::annotation::model::MatchingParameters::default().tolerance(tolerance);
 
     // Precompute theoretical fragments and parsed peptides per unique peptide+charge
-    type CacheEntry = (CompoundPeptidoformIon, Vec<rustyms::fragment::Fragment>);
+    struct CacheEntry {
+        peptide: CompoundPeptidoformIon,
+        fragments: Vec<rustyms::fragment::Fragment>,
+        seq_len: usize,
+    }
 
     let unique_keys: Vec<(String, i32)> = {
         let mut seen = HashMap::new();
@@ -160,13 +157,22 @@ pub fn annotate_ms2_spectra(
                     let entry = CompoundPeptidoformIon::pro_forma(&proforma, None)
                         .ok()
                         .map(|peptide| {
+                            let seq_len = peptide
+                                .peptidoforms()
+                                .next()
+                                .map(|pf| pf.sequence().len())
+                                .unwrap_or(0);
                             let frag_charge =
                                 rustyms::system::isize::Charge::new::<rustyms::system::e>(
                                     charge as isize,
                                 );
-                            let frags =
+                            let fragments =
                                 peptide.generate_theoretical_fragments(frag_charge, &model);
-                            (peptide, frags)
+                            CacheEntry {
+                                peptide,
+                                fragments,
+                                seq_len,
+                            }
                         });
                     ((proforma, charge), Arc::new(entry))
                 })
@@ -183,15 +189,15 @@ pub fn annotate_ms2_spectra(
                     ));
                 }
 
-                if item.mz_f32.is_empty() || item.seq_len == 0 || item.precursor_charge <= 0 {
+                if item.mz_f32.is_empty() || item.precursor_charge <= 0 {
                     return Ok(item.empty_annotated());
                 }
 
                 let key = (item.proforma.clone(), item.precursor_charge);
                 let cache_entry = frag_cache.get(&key).and_then(|e| e.as_ref().as_ref());
 
-                let (peptide, frags) = match cache_entry {
-                    Some((p, f)) if !f.is_empty() => (p, f),
+                let entry = match cache_entry {
+                    Some(e) if e.seq_len > 0 && !e.fragments.is_empty() => e,
                     _ => return Ok(item.empty_annotated()),
                 };
 
@@ -212,7 +218,8 @@ pub fn annotate_ms2_spectra(
 
                 spectrum.extend(peaks);
 
-                let annotated = spectrum.annotate(peptide.clone(), frags.as_slice(), &params, mode);
+                let annotated =
+                    spectrum.annotate(entry.peptide.clone(), &entry.fragments, &params, mode);
 
                 let peak_annotations: Vec<Vec<FragmentAnnotation>> = annotated
                     .spectrum()

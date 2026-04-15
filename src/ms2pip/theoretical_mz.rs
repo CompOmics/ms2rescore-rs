@@ -13,8 +13,8 @@ use crate::utils::{extract_charge, parse_fragment};
 /// Compute theoretical m/z values for fragment ions.
 ///
 /// Uses rustyms fragment generation, consistent with `annotate_ms2_spectra`.
-/// Returns a dict mapping ion type (e.g. "b", "y", "b2") to a list of m/z
-/// values ordered by ion position, length = seq_len - 1.
+/// Returns a dict mapping ion type (e.g. "b", "y", "b2") to a numpy float32
+/// array of m/z values ordered by ion position, length = seq_len - 1.
 #[pyfunction]
 pub fn ms2pip_compute_theoretical_mz(
     py: Python<'_>,

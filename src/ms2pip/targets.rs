@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use numpy::{PyArray1, PyArrayMethods};
 use pyo3::exceptions::PyException;
@@ -16,7 +16,6 @@ const LOG2_FLOOR: f32 = -9.965_784;
 /// per-ion-type arrays of length `seq_len - 1`, taking the max intensity
 /// when multiple peaks match the same theoretical ion position.
 ///
-/// Sequence length is derived from the max annotation position in each spectrum.
 /// Unmatched positions are filled with `log2(0.001)`.
 #[pyfunction]
 pub fn ms2pip_extract_targets(
@@ -24,13 +23,16 @@ pub fn ms2pip_extract_targets(
     annotated_spectra: Vec<Py<AnnotatedMS2Spectrum>>,
     intensities: Vec<Py<PyArray1<f32>>>,
     ion_types: Vec<String>,
+    seq_lens: Vec<usize>,
 ) -> PyResult<Vec<HashMap<String, Py<PyArray1<f32>>>>> {
     let n = annotated_spectra.len();
-    if intensities.len() != n {
+    if intensities.len() != n || seq_lens.len() != n {
         return Err(PyException::new_err(
-            "Input arrays must have identical length: annotated_spectra, intensities",
+            "Input arrays must have identical length: annotated_spectra, intensities, seq_lens",
         ));
     }
+
+    let ion_types_set: HashSet<&str> = ion_types.iter().map(|s| s.as_str()).collect();
 
     // Extract owned data under the GIL
     struct OwnedData {
@@ -47,8 +49,7 @@ pub fn ms2pip_extract_targets(
         let intensities_arr = intensities[i].bind(py);
         let intensities_vec = unsafe { intensities_arr.as_slice()? }.to_vec();
 
-        // Derive n_ions (seq_len - 1) from max annotation position
-        let mut max_pos: usize = 0;
+        let n_ions = seq_lens[i].saturating_sub(1);
         let peak_annotations: Vec<Vec<(String, usize)>> = spec
             .peak_annotations
             .iter()
@@ -64,12 +65,12 @@ pub fn ms2pip_extract_targets(
                         } else {
                             format!("{}{}", ann.series, ann.charge)
                         };
-                        if !ion_types.contains(&ion_key) {
+                        if !ion_types_set.contains(ion_key.as_str()) {
                             return None;
                         }
                         let idx = ann.position - 1;
-                        if ann.position > max_pos {
-                            max_pos = ann.position;
+                        if idx >= n_ions {
+                            return None;
                         }
                         Some((ion_key, idx))
                     })
@@ -80,7 +81,7 @@ pub fn ms2pip_extract_targets(
         owned.push(OwnedData {
             peak_annotations,
             intensities: intensities_vec,
-            n_ions: max_pos,
+            n_ions,
         });
     }
 
@@ -98,9 +99,7 @@ pub fn ms2pip_extract_targets(
                     let intensity = data.intensities.get(peak_idx).copied().unwrap_or(0.0);
                     for (ion_key, idx) in annotations {
                         if let Some(arr) = target_map.get_mut(ion_key) {
-                            if *idx < arr.len() {
-                                arr[*idx] = arr[*idx].max(intensity);
-                            }
+                            arr[*idx] = arr[*idx].max(intensity);
                         }
                     }
                 }
