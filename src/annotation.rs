@@ -133,31 +133,41 @@ pub fn annotate_ms2_spectra(
     // Precompute theoretical fragments and parsed peptides per unique peptide+charge
     type CacheEntry = (CompoundPeptidoformIon, Vec<rustyms::fragment::Fragment>);
 
-    let mut frag_cache: HashMap<(String, i32), Arc<Option<CacheEntry>>> = HashMap::new();
-    for item in &owned {
-        let key = (item.proforma.clone(), item.precursor_charge);
-        if item.precursor_charge <= 0 || frag_cache.contains_key(&key) {
-            continue;
+    let unique_keys: Vec<(String, i32)> = {
+        let mut seen = HashMap::new();
+        for item in &owned {
+            if item.precursor_charge > 0 {
+                seen.entry((item.proforma.clone(), item.precursor_charge))
+                    .or_insert(());
+            }
         }
+        seen.into_keys().collect()
+    };
 
-        let entry = CompoundPeptidoformIon::pro_forma(&item.proforma, None)
-            .ok()
-            .map(|peptide| {
-                let frag_charge = rustyms::system::isize::Charge::new::<rustyms::system::e>(
-                    item.precursor_charge as isize,
-                );
-                let frags = peptide.generate_theoretical_fragments(frag_charge, &model);
-                (peptide, frags)
-            });
-
-        frag_cache.insert(key, Arc::new(entry));
-    }
-
-    let frag_cache = Arc::new(frag_cache);
     let params = Arc::new(params);
 
-    // Release GIL and parallelize
+    // Release GIL and parallelize both cache building and annotation
     let results: Result<Vec<AnnotatedMS2Spectrum>, String> = py.detach(|| {
+        let frag_cache: Arc<HashMap<(String, i32), Arc<Option<CacheEntry>>>> = Arc::new(
+            unique_keys
+                .into_par_iter()
+                .map(|(proforma, charge)| {
+                    let entry = CompoundPeptidoformIon::pro_forma(&proforma, None)
+                        .ok()
+                        .map(|peptide| {
+                            let frag_charge =
+                                rustyms::system::isize::Charge::new::<rustyms::system::e>(
+                                    charge as isize,
+                                );
+                            let frags =
+                                peptide.generate_theoretical_fragments(frag_charge, &model);
+                            (peptide, frags)
+                        });
+                    ((proforma, charge), Arc::new(entry))
+                })
+                .collect(),
+        );
+
         owned
             .into_par_iter()
             .map(|item| {
