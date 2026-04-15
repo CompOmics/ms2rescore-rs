@@ -46,7 +46,6 @@ class TestAnnotateMS2Spectra:
         results = annotate_ms2_spectra(
             spectra=[spectrum],
             proformas=[PEPTIDE_PROFORMA],
-            seq_lens=[PEPTIDE_SEQ_LEN],
             fragmentation_model="cidhcd",
             mass_mode="monoisotopic",
             tolerance_value=20.0,
@@ -78,7 +77,6 @@ class TestAnnotateMS2Spectra:
         results = annotate_ms2_spectra(
             spectra=[spectrum],
             proformas=[PEPTIDE_PROFORMA],
-            seq_lens=[PEPTIDE_SEQ_LEN],
             fragmentation_model="cidhcd",
             mass_mode="monoisotopic",
             tolerance_value=20.0,
@@ -97,7 +95,6 @@ class TestAnnotateMS2Spectra:
         results = annotate_ms2_spectra(
             spectra=[spectrum],
             proformas=[PEPTIDE_PROFORMA],
-            seq_lens=[PEPTIDE_SEQ_LEN],
             fragmentation_model="cidhcd",
             mass_mode="monoisotopic",
             tolerance_value=20.0,
@@ -114,7 +111,6 @@ class TestAnnotateMS2Spectra:
         results = annotate_ms2_spectra(
             spectra=[spectrum],
             proformas=[PEPTIDE_PROFORMA],
-            seq_lens=[PEPTIDE_SEQ_LEN],
             fragmentation_model="cidhcd",
             mass_mode="monoisotopic",
             tolerance_value=20.0,
@@ -131,7 +127,6 @@ class TestAnnotateMS2Spectra:
         results = annotate_ms2_spectra(
             spectra=[spectrum],
             proformas=[PEPTIDE_PROFORMA],
-            seq_lens=[PEPTIDE_SEQ_LEN],
             fragmentation_model="cidhcd",
             mass_mode="monoisotopic",
             tolerance_value=0.02,
@@ -148,7 +143,6 @@ class TestAnnotateMS2Spectra:
         results = annotate_ms2_spectra(
             spectra=[spectrum],
             proformas=[PEPTIDE_PROFORMA],
-            seq_lens=[PEPTIDE_SEQ_LEN],
             fragmentation_model="etd",
             mass_mode="monoisotopic",
             tolerance_value=20.0,
@@ -167,7 +161,6 @@ class TestAnnotateMS2Spectra:
         results = annotate_ms2_spectra(
             spectra=spectra,
             proformas=[PEPTIDE_PROFORMA, PEPTIDE_PROFORMA],
-            seq_lens=[PEPTIDE_SEQ_LEN, PEPTIDE_SEQ_LEN],
             fragmentation_model="cidhcd",
             mass_mode="monoisotopic",
             tolerance_value=20.0,
@@ -187,7 +180,6 @@ class TestAnnotateMS2Spectra:
         results = annotate_ms2_spectra(
             spectra=[spectrum],
             proformas=[PEPTIDE_PROFORMA],
-            seq_lens=[PEPTIDE_SEQ_LEN],
             fragmentation_model="cidhcd",
             mass_mode="monoisotopic",
             tolerance_value=20.0,
@@ -208,7 +200,6 @@ class TestAnnotateMS2Spectra:
             annotate_ms2_spectra(
                 spectra=[spectrum],
                 proformas=[PEPTIDE_PROFORMA],
-                seq_lens=[PEPTIDE_SEQ_LEN],
                 fragmentation_model="cidhcd",
                 mass_mode="monoisotopic",
                 tolerance_value=20.0,
@@ -223,7 +214,6 @@ class TestAnnotateMS2Spectra:
             annotate_ms2_spectra(
                 spectra=[spectrum],
                 proformas=[PEPTIDE_PROFORMA, PEPTIDE_PROFORMA],
-                seq_lens=[PEPTIDE_SEQ_LEN],
                 fragmentation_model="cidhcd",
                 mass_mode="monoisotopic",
                 tolerance_value=20.0,
@@ -384,7 +374,6 @@ class TestScoreMS2Spectra:
         annotated = annotate_ms2_spectra(
             spectra=[spectrum],
             proformas=[PEPTIDE_PROFORMA],
-            seq_lens=[PEPTIDE_SEQ_LEN],
             fragmentation_model="cidhcd",
             mass_mode="monoisotopic",
             tolerance_value=20.0,
