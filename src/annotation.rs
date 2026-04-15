@@ -58,21 +58,19 @@ fn parse_tolerance(
 
 /// Annotate MS2 spectra with theoretical fragment ions.
 #[pyfunction]
-#[allow(clippy::too_many_arguments)]
 pub fn annotate_ms2_spectra(
     py: Python<'_>,
     spectra: Vec<Py<MS2Spectrum>>,
     proformas: Vec<String>,
-    seq_lens: Vec<usize>,
     fragmentation_model: String,
     mass_mode: String,
     tolerance_value: f64,
     tolerance_mode: String,
 ) -> PyResult<Vec<AnnotatedMS2Spectrum>> {
     let n = spectra.len();
-    if proformas.len() != n || seq_lens.len() != n {
+    if proformas.len() != n {
         return Err(PyException::new_err(
-            "Input arrays must have identical length: spectra, proformas, seq_lens",
+            "Input arrays must have identical length: spectra, proformas",
         ));
     }
 
@@ -106,22 +104,29 @@ pub fn annotate_ms2_spectra(
         let spec_ref = spectra[i].bind(py);
         let spec = spec_ref.borrow();
 
+        let proforma = proformas[i]
+            .split('/')
+            .next()
+            .unwrap_or(&proformas[i])
+            .to_string();
+
+        let seq_len = CompoundPeptidoformIon::pro_forma(&proforma, None)
+            .ok()
+            .and_then(|cpf| cpf.peptidoforms().next().map(|pf| pf.sequence().len()))
+            .unwrap_or(0);
+
         owned.push(OwnedSpec {
             id: spec.identifier.clone(),
             mz_f32: spec.mz.clone(),
             intensity_f32: spec.intensity.clone(),
             precursor: spec.precursor.clone(),
-            seq_len: seq_lens[i],
+            seq_len,
             precursor_charge: spec
                 .precursor
                 .as_ref()
                 .map(|p| p.charge as i32)
                 .unwrap_or(0),
-            proforma: proformas[i]
-                .split('/')
-                .next()
-                .unwrap_or(&proformas[i])
-                .to_string(),
+            proforma,
         });
     }
 
