@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use numpy::PyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -21,7 +22,7 @@ pub fn ms2pip_compute_theoretical_mz(
     ion_types: Vec<String>,
     fragmentation_model: String,
     mass_mode: String,
-) -> PyResult<Vec<HashMap<String, Vec<f64>>>> {
+) -> PyResult<Vec<HashMap<String, Py<PyArray1<f32>>>>> {
     let model = parse_fragmentation_model(&fragmentation_model)?;
     let mode = parse_mass_mode(&mass_mode)?;
 
@@ -89,5 +90,17 @@ pub fn ms2pip_compute_theoretical_mz(
             .collect()
     });
 
-    results.map_err(PyValueError::new_err)
+    let results = results.map_err(PyValueError::new_err)?;
+    Ok(results
+        .into_iter()
+        .map(|mz_map| {
+            mz_map
+                .into_iter()
+                .map(|(key, vals)| {
+                    let f32_vals: Vec<f32> = vals.into_iter().map(|v| v as f32).collect();
+                    (key, PyArray1::from_vec(py, f32_vals).into())
+                })
+                .collect()
+        })
+        .collect())
 }
