@@ -33,14 +33,19 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        target: [x64, aarch64]
+        include:
+          - target: x64
+            args: --release --out dist --find-interpreter
+          - target: aarch64
+            # ARM64 Python only available from 3.11+
+            args: --release --out dist -i 3.11 -i 3.12 -i 3.13
     steps:
       - uses: actions/checkout@v4
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
+          args: ${{ matrix.args }}
           sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
