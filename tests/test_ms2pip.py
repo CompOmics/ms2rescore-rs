@@ -190,13 +190,12 @@ class TestMs2pipComputeTheoreticalMz:
         assert "b" in result[0]
         assert "y" not in result[0]
 
-    def test_no_charge_defaults(self):
-        """Without charge, should still compute m/z (defaults to charge 1)."""
-        result = ms2pip_compute_theoretical_mz(
-            ["ACDE"], ["b", "y"], "cidhcd", "monoisotopic"
-        )
-        assert len(result[0]["b"]) == 3
-        assert all(v > 0 for v in result[0]["b"])
+    def test_no_charge_raises(self):
+        """Without a charge state, should raise (parity with feature computation)."""
+        with pytest.raises(ValueError, match="No charge state"):
+            ms2pip_compute_theoretical_mz(
+                ["ACDE"], ["b", "y"], "cidhcd", "monoisotopic"
+            )
 
     def test_invalid_proforma_raises(self):
         """Invalid ProForma should raise."""

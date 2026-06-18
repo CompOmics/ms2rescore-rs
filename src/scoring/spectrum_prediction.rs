@@ -15,7 +15,7 @@ use pyo3::types::{PyAny, PyModule};
 
 use rayon::prelude::*;
 
-const CLIP_LOG2_MIN: f64 = -9.965_784_284_662_087; // (0.001_f64).log2()
+const CLIP_LOG2_MIN: f64 = crate::utils::LOG2_FLOOR_F64; // (0.001_f64).log2()
 
 #[inline]
 fn clip_min_f32(x: f32) -> f64 {

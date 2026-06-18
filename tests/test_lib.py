@@ -76,3 +76,10 @@ def test_get_ms2_spectra_bruker_minitdf():
     assert spectrum.identifier == "1"
     assert spectrum.mz[0] == pytest.approx(190.1070556640625, 0.0001)
     assert spectrum.intensity[0] == pytest.approx(350.0, 0.0001)
+
+
+def test_unsupported_file_type_raises_value_error():
+    with pytest.raises(ValueError, match="Unsupported file type"):
+        get_ms2_spectra("tests/data/test.unsupported")
+    with pytest.raises(ValueError, match="Unsupported file type"):
+        get_precursor_info("tests/data/test.unsupported")

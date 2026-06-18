@@ -52,8 +52,11 @@ fn parse_tolerance(
     }
 }
 
-
 /// Annotate MS2 spectra with theoretical fragment ions.
+///
+/// The charge suffix in the ProForma string (e.g. `PEPTIDE/2`) is used for
+/// fragment generation when present; the spectrum precursor charge is the
+/// fallback when no charge suffix is present in the ProForma string.
 #[pyfunction]
 pub fn annotate_ms2_spectra(
     py: Python<'_>,
@@ -66,7 +69,7 @@ pub fn annotate_ms2_spectra(
 ) -> PyResult<Vec<AnnotatedMS2Spectrum>> {
     let n = spectra.len();
     if proformas.len() != n {
-        return Err(PyException::new_err(
+        return Err(PyValueError::new_err(
             "Input arrays must have identical length: spectra, proformas",
         ));
     }
@@ -100,22 +103,33 @@ pub fn annotate_ms2_spectra(
         let spec_ref = spectra[i].bind(py);
         let spec = spec_ref.borrow();
 
-        let proforma = proformas[i]
-            .split('/')
-            .next()
-            .unwrap_or(&proformas[i])
-            .to_string();
+        let fallback_charge = spec.precursor.as_ref().map(|p| p.charge as i32).unwrap_or(0);
+        let (proforma, precursor_charge) = match proformas[i].split_once('/') {
+            Some((seq, charge_str)) => {
+                let charge = charge_str.trim().parse::<i32>().map_err(|_| {
+                    PyValueError::new_err(format!(
+                        "Invalid charge suffix in ProForma at index {i}: '{}'. \
+                         Expected a positive integer (e.g. 'PEPTIDE/2').",
+                        proformas[i]
+                    ))
+                })?;
+                if charge <= 0 {
+                    return Err(PyValueError::new_err(format!(
+                        "Charge must be a positive integer in ProForma at index {i}: '{}'.",
+                        proformas[i]
+                    )));
+                }
+                (seq.to_string(), charge)
+            }
+            None => (proformas[i].clone(), fallback_charge),
+        };
 
         owned.push(OwnedSpec {
             id: spec.identifier.clone(),
             mz_f32: spec.mz.clone(),
             intensity_f32: spec.intensity.clone(),
             precursor: spec.precursor.clone(),
-            precursor_charge: spec
-                .precursor
-                .as_ref()
-                .map(|p| p.charge as i32)
-                .unwrap_or(0),
+            precursor_charge,
             proforma,
         });
     }
@@ -123,7 +137,8 @@ pub fn annotate_ms2_spectra(
     let model = parse_fragmentation_model(&fragmentation_model)?;
     let mode = parse_mass_mode(&mass_mode)?;
     let tolerance = parse_tolerance(tolerance_value, &tolerance_mode)?;
-    // Precompute theoretical fragments per unique peptidoform+charge
+
+    // Precompute theoretical fragments per unique (bare sequence, charge) pair.
     struct CacheEntry {
         fragments: Vec<crate::utils::CachedFragment>,
         seq_len: usize,
@@ -141,7 +156,7 @@ pub fn annotate_ms2_spectra(
         seen.into_keys().collect()
     };
 
-    // Release GIL and parallelize both cache building and annotation
+    // Release GIL and parallelize both cache building and annotation.
     let results: Result<Vec<AnnotatedMS2Spectrum>, String> = py.detach(|| {
         let frag_cache: FragCache = Arc::new(
             unique_keys
@@ -159,12 +174,10 @@ pub fn annotate_ms2_spectra(
                                 rustyms::system::isize::Charge::new::<rustyms::system::e>(
                                     charge as isize,
                                 );
-                            let fragments =
-                                build_theoretical_fragments(&peptidoform, frag_charge, &model, mode);
-                            CacheEntry {
-                                fragments,
-                                seq_len,
-                            }
+                            let fragments = build_theoretical_fragments(
+                                &peptidoform, frag_charge, &model, mode,
+                            );
+                            CacheEntry { fragments, seq_len }
                         });
                     ((proforma, charge), Arc::new(entry))
                 })
@@ -193,16 +206,9 @@ pub fn annotate_ms2_spectra(
                     _ => return Ok(item.empty_annotated()),
                 };
 
-                let mz_range = MassOverCharge::new::<thomson>(0.0)
-                    ..=MassOverCharge::new::<thomson>(f64::MAX);
                 let mut peak_annotations = vec![Vec::new(); item.mz_f32.len()];
 
                 for frag in &entry.fragments {
-                    let fragment_mz = MassOverCharge::new::<thomson>(frag.mz);
-                    if !mz_range.contains(&fragment_mz) {
-                        continue;
-                    }
-
                     if let Some(idx) = search_sorted_mz(&item.mz_f32, frag.mz, &tolerance) {
                         peak_annotations[idx].push(FragmentAnnotation {
                             series: frag.series.to_string(),
