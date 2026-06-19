@@ -27,6 +27,12 @@ Supported input formats: mzML, mzMLb, MGF, Thermo RAW, Bruker TDF/TIMS.
 
 ProForma 2.0 notation is used throughout for peptide sequences and modifications.
 
+## Built on
+
+- [mzcore (formerly rustyms)](https://github.com/rusteomics/mzcore) — ProForma parsing, theoretical fragment generation, and mass calculations
+- [mzdata](https://github.com/mobiusklein/mzdata) — mzML, mzMLb, MGF, and Thermo RAW file reading
+- [timsrust](https://github.com/MannLabs/timsrust) — Bruker TDF/TIMS file reading
+
 ## Development
 
 Requires Rust and [maturin](https://github.com/PyO3/maturin).
