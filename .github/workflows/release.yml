@@ -36,6 +36,12 @@ jobs:
             target: aarch64
     steps:
       - uses: actions/checkout@v4
+      - name: Set up MSVC environment
+        if: matrix.platform == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Set cmake generator for Windows
+        if: matrix.platform == 'windows'
+        run: echo "CMAKE_GENERATOR=Ninja" >> $env:GITHUB_ENV
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:

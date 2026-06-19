@@ -4,7 +4,7 @@ mod timsrust;
 
 use std::collections::HashMap;
 
-use pyo3::exceptions::PyException;
+use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 
 use crate::types::ms2_spectrum::MS2Spectrum;
@@ -27,16 +27,18 @@ pub fn get_precursor_info(
 ) -> PyResult<HashMap<String, Precursor>> {
     let file_type = match_file_type(&spectrum_path);
 
+    // Can't raise PyValueError below in a detached thread, so check here first
+    if matches!(file_type, SpectrumFileType::Unknown) {
+        return Err(PyValueError::new_err("Unsupported file type"));
+    }
+
     let precursors = py.detach(|| match file_type {
         SpectrumFileType::MascotGenericFormat
         | SpectrumFileType::MzML
         | SpectrumFileType::MzMLb
         | SpectrumFileType::ThermoRaw => mzdata::parse_precursor_info(&spectrum_path),
         SpectrumFileType::BrukerRaw => timsrust::parse_precursor_info(&spectrum_path),
-        SpectrumFileType::Unknown => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "Unsupported file type",
-        )),
+        SpectrumFileType::Unknown => unreachable!("handled above"),
     });
 
     match precursors {
@@ -53,16 +55,18 @@ pub fn get_ms2_spectra(
 ) -> PyResult<Vec<MS2Spectrum>> {
     let file_type = match_file_type(&spectrum_path);
 
+    // Can't raise PyValueError below in a detached thread, so check here first
+    if matches!(file_type, SpectrumFileType::Unknown) {
+        return Err(PyValueError::new_err("Unsupported file type"));
+    }
+
     let spectra = py.detach(|| match file_type {
         SpectrumFileType::MascotGenericFormat
         | SpectrumFileType::MzML
         | SpectrumFileType::MzMLb
         | SpectrumFileType::ThermoRaw => mzdata::read_ms2_spectra(&spectrum_path),
         SpectrumFileType::BrukerRaw => timsrust::read_ms2_spectra(&spectrum_path),
-        SpectrumFileType::Unknown => Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "Unsupported file type",
-        )),
+        SpectrumFileType::Unknown => unreachable!("handled above"),
     });
 
     match spectra {

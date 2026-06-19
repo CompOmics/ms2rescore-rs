@@ -7,8 +7,9 @@ use rayon::prelude::*;
 
 use crate::types::annotation::AnnotatedMS2Spectrum;
 
-/// Floor value for unmatched ions: log2(0.001)
-const LOG2_FLOOR: f32 = -9.965_784;
+/// Floor value for unmatched ions: log2(0.001). Derived from the canonical
+/// f64 constant to avoid precision drift.
+const LOG2_FLOOR: f32 = crate::utils::LOG2_FLOOR_F64 as f32;
 
 /// Extract per-ion-type observed intensity arrays from annotated spectra.
 ///
@@ -48,6 +49,14 @@ pub fn ms2pip_extract_targets(
 
         let intensities_arr = intensities[i].bind(py);
         let intensities_vec = unsafe { intensities_arr.as_slice()? }.to_vec();
+
+        if intensities_vec.len() != spec.peak_annotations.len() {
+            return Err(PyException::new_err(format!(
+                "Spectrum {i}: intensities length {} != peak count {}",
+                intensities_vec.len(),
+                spec.peak_annotations.len()
+            )));
+        }
 
         let n_ions = seq_lens[i].saturating_sub(1);
         let peak_annotations: Vec<Vec<(String, usize)>> = spec

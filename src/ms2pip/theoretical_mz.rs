@@ -76,7 +76,13 @@ pub fn ms2pip_compute_theoretical_mz(
                 let peptidoform = CompoundPeptidoformIon::pro_forma(pf, None)
                     .map_err(|e| format!("ProForma at index {i}: {e}"))?;
 
-                let charge = extract_charge(&peptidoform).unwrap_or(1) as isize;
+                let charge = extract_charge(&peptidoform)
+                    .ok_or_else(|| {
+                        format!(
+                            "No charge state found in ProForma at index {i}: '{pf}'. \
+                             MS2PIP requires a charge (e.g. 'PEPTIDE/2')."
+                        )
+                    })? as isize;
 
                 let seq_len = peptidoform
                     .peptidoforms()

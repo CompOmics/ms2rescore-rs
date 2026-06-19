@@ -16,6 +16,10 @@ pub struct CachedFragment {
     pub mz: f64,
 }
 
+/// Floor value for log2-intensity clipping and unmatched-ion fill: log2(0.001).
+/// Single source of truth; f32 consumers cast at use site.
+pub const LOG2_FLOOR_F64: f64 = -9.965_784_284_662_087;
+
 /// Compute ln(n!). For typical peptide-length inputs (n < 50) the
 /// iterative sum is fast enough; a lookup table is not warranted.
 pub fn ln_factorial(n: usize) -> f64 {
