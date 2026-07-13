@@ -1,29 +1,33 @@
 use std::collections::HashMap;
 
 use mzdata::{params::ParamValue, prelude::*, MZReader};
+use rayon::prelude::*;
 
-use crate::ms2_spectrum::MS2Spectrum;
-use crate::precursor::Precursor;
+use crate::types::ms2_spectrum::MS2Spectrum;
+use crate::types::precursor::Precursor;
 
 impl From<&mzdata::spectrum::MultiLayerSpectrum> for Precursor {
     fn from(spectrum: &mzdata::spectrum::MultiLayerSpectrum) -> Self {
         let precursor = &spectrum.precursor();
         match precursor {
-            Some(precursor) => Precursor {
-                mz: precursor.ions[0].mz,
-                rt: spectrum
-                    .description
-                    .acquisition
-                    .first_scan()
-                    .map(|s| s.start_time)
-                    .unwrap_or(0.0),
-                im: get_im_from_spectrum_description(spectrum)
-                    .or(get_im_from_selected_ion(spectrum))
-                    .or(get_im_from_first_scan(spectrum))
-                    .unwrap_or(0.0),
-                charge: get_charge_from_spectrum(spectrum).unwrap_or(0),
-                intensity: precursor.ions[0].intensity as f64,
-            },
+            Some(precursor) => {
+                let first_ion = precursor.ions.first();
+                Precursor {
+                    mz: first_ion.map(|i| i.mz).unwrap_or(0.0),
+                    rt: spectrum
+                        .description
+                        .acquisition
+                        .first_scan()
+                        .map(|s| s.start_time)
+                        .unwrap_or(0.0),
+                    im: get_im_from_spectrum_description(spectrum)
+                        .or(get_im_from_selected_ion(spectrum))
+                        .or(get_im_from_first_scan(spectrum))
+                        .unwrap_or(0.0),
+                    charge: get_charge_from_spectrum(spectrum).unwrap_or(0),
+                    intensity: first_ion.map(|i| i.intensity as f64).unwrap_or(0.0),
+                }
+            }
             None => Precursor::default(),
         }
     }
@@ -49,8 +53,11 @@ pub fn parse_precursor_info(
     spectrum_path: &str,
 ) -> Result<HashMap<String, Precursor>, std::io::Error> {
     let reader = MZReader::open_path(spectrum_path)?;
-    Ok(reader
+    let spectra: Vec<_> = reader
         .filter(|spectrum| spectrum.description.ms_level == 2)
+        .collect();
+    Ok(spectra
+        .into_par_iter()
         .filter_map(|spectrum| {
             spectrum.precursor().as_ref()?;
             Some((spectrum.description.id.clone(), Precursor::from(&spectrum)))
@@ -65,8 +72,11 @@ pub fn read_ms2_spectra(spectrum_path: &str) -> Result<Vec<MS2Spectrum>, std::io
         inner.set_centroiding(true);
     }
 
-    Ok(reader
+    let spectra: Vec<_> = reader
         .filter(|spectrum| spectrum.description.ms_level == 2)
+        .collect();
+    Ok(spectra
+        .into_par_iter()
         .map(MS2Spectrum::from)
         .collect::<Vec<MS2Spectrum>>())
 }

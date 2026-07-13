@@ -4,12 +4,13 @@ build-backend = "maturin"
 
 [project]
 name = "ms2rescore-rs"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
+dependencies = ["numpy>=1.20"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
