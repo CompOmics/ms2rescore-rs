@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `ms2dip_extract_intensity_grid`: extract fixed-size, NaN-masked intensity grids from
+  annotated spectra for MS²DIP-style CNN training targets (caller-defined ion-type/charge
+  row layout, max-of-collisions intensity fill)
+
 ## [0.5.0] - 2026-07-13
 
 First stable 0.5.0 release. No functional changes since 0.5.0-beta.1.

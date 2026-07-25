@@ -1,5 +1,6 @@
 mod annotation;
 mod io;
+mod ms2dip;
 mod ms2pip;
 mod scoring;
 mod types;
@@ -37,6 +38,10 @@ fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     m.add_function(wrap_pyfunction!(
         ms2pip::targets::ms2pip_extract_targets,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        ms2dip::intensity_grid::ms2dip_extract_intensity_grid,
         m
     )?)?;
     Ok(())

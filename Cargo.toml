@@ -1,6 +1,6 @@
 [package]
 name = "ms2rescore-rs"
-version = "0.5.0"
+version = "0.6.0-beta.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -16,3 +16,4 @@ timsrust = "0.4.2"
 rustyms = "0.11"
 ordered-float = "5"
 numpy = "0.28"
+ndarray = "0.16"
