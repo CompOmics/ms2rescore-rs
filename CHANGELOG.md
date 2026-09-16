@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `annotate_ms2_spectra(..., extended=False)`: with `extended=True`, neutral-loss
+  variants, precursor, diagnostic, immonium and satellite ions are matched and
+  stored in the new `AnnotatedMS2Spectrum.extended_annotations` field.
+  Modification-specific losses and diagnostic ions require named modifications
+  in the ProForma string (e.g. `S[Phospho]`); numeric mass shifts carry none.
+- `FragmentAnnotation.ion_type`, `.neutral_loss` (Hill notation, e.g. `-H3O4P1`)
+  and `.loss_mass` (positive for a loss). Defaults keep existing constructors
+  and pickles working.
+- `proforma_is_parseable`: check which ProForma strings rustyms accepts,
+  including modification placement rules.
+
+### Changed
+- `peak_annotations` now only contains loss-free backbone ions. Previously
+  neutral-loss fragments (e.g. b3-H2O) were annotated as the plain ion (b3),
+  which inflated `score_ms2_spectra` matches and `ms2pip_extract_targets`
+  intensities. Loss fragments are now available via `extended_annotations`.
+- `ms2pip_compute_theoretical_mz` no longer considers loss fragments when
+  filling the m/z arrays.
+
 ## [0.5.0] - 2026-07-13
 
 First stable 0.5.0 release. No functional changes since 0.5.0-beta.1.

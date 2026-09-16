@@ -1,6 +1,6 @@
 use rustyms::annotation::model::FragmentationModel;
-use rustyms::chemistry::MassMode;
-use rustyms::fragment::{Fragment, FragmentType};
+use rustyms::chemistry::{MassMode, MolecularFormula};
+use rustyms::fragment::{DiagnosticPosition, Fragment, FragmentType};
 use rustyms::prelude::CompoundPeptidoformIon;
 use rustyms::quantities::{Tolerance, WithinTolerance};
 use rustyms::sequence::AminoAcid;
@@ -8,12 +8,23 @@ use rustyms::system::f64::MassOverCharge;
 use rustyms::system::isize::Charge;
 use rustyms::system::mass_over_charge::thomson;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct CachedFragment {
     pub series: char,
     pub position: usize,
     pub charge: usize,
     pub mz: f64,
+    pub ion_type: &'static str,
+    /// Hill-notation neutral loss label, empty when none
+    pub neutral_loss: String,
+    /// Monoisotopic mass of the neutral loss, positive for a loss
+    pub loss_mass: f64,
+}
+
+impl CachedFragment {
+    pub fn is_plain_backbone(&self) -> bool {
+        self.ion_type == "backbone" && self.neutral_loss.is_empty()
+    }
 }
 
 /// Floor value for log2-intensity clipping and unmatched-ion fill: log2(0.001).
@@ -43,6 +54,56 @@ pub fn parse_fragment(frag: &Fragment) -> Option<(char, usize, usize)> {
     Some((series, pos.series_number, charge))
 }
 
+/// Parse any rustyms Fragment into (ion_type, series_char, position).
+/// Returns None for fragment kinds that are not exposed (internal, glycan, unknown).
+/// Position is 1-indexed; 0 when not applicable (precursor, reporter ions).
+pub fn parse_fragment_extended(frag: &Fragment) -> Option<(&'static str, char, usize)> {
+    let seq_pos = |p: &rustyms::fragment::PeptidePosition| match p.sequence_index {
+        rustyms::sequence::SequencePosition::Index(i) => i + 1,
+        _ => 0,
+    };
+    match &frag.ion {
+        FragmentType::a(..)
+        | FragmentType::b(..)
+        | FragmentType::c(..)
+        | FragmentType::x(..)
+        | FragmentType::y(..)
+        | FragmentType::z(..) => {
+            let (series, pos, _) = parse_fragment(frag)?;
+            Some(("backbone", series, pos))
+        }
+        FragmentType::d(pos, ..) => Some(("satellite", 'd', pos.series_number)),
+        FragmentType::v(pos, ..) => Some(("satellite", 'v', pos.series_number)),
+        FragmentType::w(pos, ..) => Some(("satellite", 'w', pos.series_number)),
+        FragmentType::Precursor => Some(("precursor", 'M', 0)),
+        FragmentType::Diagnostic(DiagnosticPosition::Peptide(pos, _)) => {
+            Some(("diagnostic", 'D', seq_pos(pos)))
+        }
+        FragmentType::Diagnostic(_) => Some(("diagnostic", 'D', 0)),
+        FragmentType::Immonium(pos, _) => {
+            Some(("immonium", 'I', pos.as_ref().map(seq_pos).unwrap_or(0)))
+        }
+        _ => None,
+    }
+}
+
+/// Neutral-loss label and mass for a fragment. ("", 0.0) when the fragment has no loss.
+pub fn fragment_loss(frag: &Fragment) -> (String, f64) {
+    if frag.neutral_loss.is_empty() {
+        return (String::new(), 0.0);
+    }
+    let label: String = frag
+        .neutral_loss
+        .iter()
+        .map(|l| l.hill_notation())
+        .collect();
+    let mut delta = MolecularFormula::default();
+    for loss in &frag.neutral_loss {
+        delta += loss;
+    }
+    (label, -delta.monoisotopic_mass().value)
+}
+
 /// Extract the precursor charge from a parsed peptidoform.
 /// Returns None if no charge carriers are present.
 pub fn extract_charge(peptidoform: &CompoundPeptidoformIon) -> Option<usize> {
@@ -54,24 +115,30 @@ pub fn extract_charge(peptidoform: &CompoundPeptidoformIon) -> Option<usize> {
         .filter(|&c| c > 0)
 }
 
+/// Build theoretical fragments. With `extended == false` only loss-free backbone ions are kept.
 pub fn build_theoretical_fragments(
     peptidoform: &CompoundPeptidoformIon,
     max_charge: Charge,
     model: &FragmentationModel,
     mode: MassMode,
+    extended: bool,
 ) -> Vec<CachedFragment> {
     peptidoform
         .generate_theoretical_fragments(max_charge, model)
         .into_iter()
         .filter_map(|frag| {
-            let (series, position, charge) = parse_fragment(&frag)?;
-            let mz = frag.mz(mode)?.value;
-            Some(CachedFragment {
+            let (ion_type, series, position) = parse_fragment_extended(&frag)?;
+            let (neutral_loss, loss_mass) = fragment_loss(&frag);
+            let cached = CachedFragment {
                 series,
                 position,
-                charge,
-                mz,
-            })
+                charge: frag.charge.value.unsigned_abs(),
+                mz: frag.mz(mode)?.value,
+                ion_type,
+                neutral_loss,
+                loss_mass,
+            };
+            (extended || cached.is_plain_backbone()).then_some(cached)
         })
         .collect()
 }
@@ -167,7 +234,10 @@ mod tests {
         assert_eq!(longest_true_run(&[false, false]), 0);
         assert_eq!(longest_true_run(&[true, true, false, true]), 2);
         assert_eq!(longest_true_run(&[true, true, true]), 3);
-        assert_eq!(longest_true_run(&[false, true, false, true, true, false]), 2);
+        assert_eq!(
+            longest_true_run(&[false, true, false, true, true, false]),
+            2
+        );
     }
 
     #[test]

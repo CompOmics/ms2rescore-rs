@@ -397,3 +397,80 @@ class TestScoreMS2Spectra:
 
         # Total intensity should include all peaks
         assert feats["ln_total_intensity"] > 0
+
+
+
+# PEPS[Phospho]TIDE/2 reference m/z (monoisotopic, computed with pyteomics):
+# b3 PEP           324.15540
+# b4 PEPS(p)-H3PO4 393.17686  (rustyms Hill label: -H3O4P1)
+# precursor-H3PO4  435.19799 (2+)
+# y5 STIDE(p)      644.21748
+PHOSPHO_PROFORMA = "PEPS[Phospho]TIDE/2"
+PHOSPHO_MZ = [324.1554, 393.1769, 435.1980, 644.2175, 999.0]
+
+
+def _annotate_phospho(extended):
+    spectrum = _make_spectrum("phos", PHOSPHO_MZ, [10.0] * len(PHOSPHO_MZ))
+    return annotate_ms2_spectra(
+        spectra=[spectrum],
+        proformas=[PHOSPHO_PROFORMA],
+        fragmentation_model="cidhcd",
+        mass_mode="monoisotopic",
+        tolerance_value=20.0,
+        tolerance_mode="ppm",
+        extended=extended,
+    )[0]
+
+
+class TestExtendedAnnotation:
+    """Tests for extended (loss / precursor / diagnostic) annotations."""
+
+    @pytest.mark.parametrize("extended", [False, True])
+    def test_peak_annotations_are_loss_free(self, extended):
+        """Loss peaks never appear in peak_annotations; extended list only exists on request."""
+        ann = _annotate_phospho(extended)
+        matched = [i for i, anns in enumerate(ann.peak_annotations) if anns]
+        assert matched == [0, 3]  # b3 and y5 only; b4-H3PO4 and precursor-H3PO4 excluded
+        assert len(ann.extended_annotations) == (len(PHOSPHO_MZ) if extended else 0)
+
+    def test_extended_loss_and_precursor(self):
+        ext = _annotate_phospho(extended=True).extended_annotations
+        assert ext[0] == []  # plain b3 not duplicated into extended
+        assert ext[4] == []  # unmatched peak
+
+        b4_loss = [a for a in ext[1] if a.series == "b" and a.position == 4]
+        assert b4_loss, ext[1]
+        assert b4_loss[0].ion_type == "backbone"
+        assert b4_loss[0].neutral_loss == "-H3O4P1"
+        assert math.isclose(b4_loss[0].loss_mass, 97.976895, abs_tol=1e-4)
+
+        prec = [a for a in ext[2] if a.ion_type == "precursor"]
+        assert prec, ext[2]
+        assert (prec[0].neutral_loss, prec[0].charge, prec[0].position) == ("-H3O4P1", 2, 0)
+
+    def test_defaults_and_pickle_roundtrip(self):
+        import pickle
+
+        a = FragmentAnnotation(series="b", position=1, charge=1)
+        assert (a.ion_type, a.neutral_loss, a.loss_mass) == ("backbone", "", 0.0)
+
+        spec = AnnotatedMS2Spectrum(
+            identifier="x",
+            mz=[1.0],
+            intensity=[1.0],
+            peak_annotations=[[]],
+            extended_annotations=[[FragmentAnnotation("b", 1, 1, "backbone", "-H2O", 18.0106)]],
+        )
+        b = pickle.loads(pickle.dumps(spec)).extended_annotations[0][0]
+        assert (b.series, b.neutral_loss, b.loss_mass) == ("b", "-H2O", 18.0106)
+        assert AnnotatedMS2Spectrum(identifier="y", mz=[1.0], intensity=[1.0], peak_annotations=[[]]).extended_annotations == []
+
+
+class TestProformaIsParseable:
+    def test_mixed(self):
+        from ms2rescore_rs import proforma_is_parseable
+
+        result = proforma_is_parseable(
+            ["PEPS[Phospho]TIDE/2", "PEPA[Phospho]TIDE", "PEP[Nonsense]TIDE", "PEPTIDE", ""]
+        )
+        assert result == [True, False, False, True, False]

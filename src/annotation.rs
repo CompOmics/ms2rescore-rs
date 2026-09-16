@@ -57,7 +57,13 @@ fn parse_tolerance(
 /// The charge suffix in the ProForma string (e.g. `PEPTIDE/2`) is used for
 /// fragment generation when present; the spectrum precursor charge is the
 /// fallback when no charge suffix is present in the ProForma string.
+///
+/// With `extended=True`, neutral-loss variants, precursor, diagnostic, immonium and
+/// satellite ions are matched as well and stored in `extended_annotations`;
+/// `peak_annotations` always holds loss-free backbone ions only.
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (spectra, proformas, fragmentation_model, mass_mode, tolerance_value, tolerance_mode, extended=false))]
 pub fn annotate_ms2_spectra(
     py: Python<'_>,
     spectra: Vec<Py<MS2Spectrum>>,
@@ -66,6 +72,7 @@ pub fn annotate_ms2_spectra(
     mass_mode: String,
     tolerance_value: f64,
     tolerance_mode: String,
+    extended: bool,
 ) -> PyResult<Vec<AnnotatedMS2Spectrum>> {
     let n = spectra.len();
     if proformas.len() != n {
@@ -86,7 +93,7 @@ pub fn annotate_ms2_spectra(
     }
 
     impl OwnedSpec {
-        fn empty_annotated(self) -> AnnotatedMS2Spectrum {
+        fn empty_annotated(self, extended: bool) -> AnnotatedMS2Spectrum {
             let n_peaks = self.mz_f32.len();
             AnnotatedMS2Spectrum {
                 identifier: self.id,
@@ -94,6 +101,11 @@ pub fn annotate_ms2_spectra(
                 intensity: self.intensity_f32,
                 precursor: self.precursor,
                 peak_annotations: vec![Vec::new(); n_peaks],
+                extended_annotations: if extended {
+                    vec![Vec::new(); n_peaks]
+                } else {
+                    Vec::new()
+                },
             }
         }
     }
@@ -103,7 +115,11 @@ pub fn annotate_ms2_spectra(
         let spec_ref = spectra[i].bind(py);
         let spec = spec_ref.borrow();
 
-        let fallback_charge = spec.precursor.as_ref().map(|p| p.charge as i32).unwrap_or(0);
+        let fallback_charge = spec
+            .precursor
+            .as_ref()
+            .map(|p| p.charge as i32)
+            .unwrap_or(0);
         let (proforma, precursor_charge) = match proformas[i].split_once('/') {
             Some((seq, charge_str)) => {
                 let charge = charge_str.trim().parse::<i32>().map_err(|_| {
@@ -162,23 +178,26 @@ pub fn annotate_ms2_spectra(
             unique_keys
                 .into_par_iter()
                 .map(|(proforma, charge)| {
-                    let entry = CompoundPeptidoformIon::pro_forma(&proforma, None)
-                        .ok()
-                        .map(|peptidoform| {
+                    let entry = CompoundPeptidoformIon::pro_forma(&proforma, None).ok().map(
+                        |peptidoform| {
                             let seq_len = peptidoform
                                 .peptidoforms()
                                 .next()
                                 .map(|pf| pf.sequence().len())
                                 .unwrap_or(0);
-                            let frag_charge =
-                                rustyms::system::isize::Charge::new::<rustyms::system::e>(
-                                    charge as isize,
-                                );
+                            let frag_charge = rustyms::system::isize::Charge::new::<
+                                rustyms::system::e,
+                            >(charge as isize);
                             let fragments = build_theoretical_fragments(
-                                &peptidoform, frag_charge, &model, mode,
+                                &peptidoform,
+                                frag_charge,
+                                &model,
+                                mode,
+                                extended,
                             );
                             CacheEntry { fragments, seq_len }
-                        });
+                        },
+                    );
                     ((proforma, charge), Arc::new(entry))
                 })
                 .collect(),
@@ -195,7 +214,7 @@ pub fn annotate_ms2_spectra(
                 }
 
                 if item.mz_f32.is_empty() || item.precursor_charge <= 0 {
-                    return Ok(item.empty_annotated());
+                    return Ok(item.empty_annotated(extended));
                 }
 
                 let key = (item.proforma.clone(), item.precursor_charge);
@@ -203,18 +222,32 @@ pub fn annotate_ms2_spectra(
 
                 let entry = match cache_entry {
                     Some(e) if e.seq_len > 0 && !e.fragments.is_empty() => e,
-                    _ => return Ok(item.empty_annotated()),
+                    _ => return Ok(item.empty_annotated(extended)),
                 };
 
-                let mut peak_annotations = vec![Vec::new(); item.mz_f32.len()];
+                let n_peaks = item.mz_f32.len();
+                let mut peak_annotations = vec![Vec::new(); n_peaks];
+                let mut extended_annotations = if extended {
+                    vec![Vec::new(); n_peaks]
+                } else {
+                    Vec::new()
+                };
 
                 for frag in &entry.fragments {
                     if let Some(idx) = search_sorted_mz(&item.mz_f32, frag.mz, &tolerance) {
-                        peak_annotations[idx].push(FragmentAnnotation {
+                        let ann = FragmentAnnotation {
                             series: frag.series.to_string(),
                             position: frag.position,
                             charge: frag.charge,
-                        });
+                            ion_type: frag.ion_type.to_string(),
+                            neutral_loss: frag.neutral_loss.clone(),
+                            loss_mass: frag.loss_mass,
+                        };
+                        if frag.is_plain_backbone() {
+                            peak_annotations[idx].push(ann);
+                        } else {
+                            extended_annotations[idx].push(ann);
+                        }
                     }
                 }
 
@@ -224,6 +257,7 @@ pub fn annotate_ms2_spectra(
                     intensity: item.intensity_f32,
                     precursor: item.precursor,
                     peak_annotations,
+                    extended_annotations,
                 })
             })
             .collect()
@@ -233,4 +267,16 @@ pub fn annotate_ms2_spectra(
         Ok(v) => Ok(v),
         Err(e) => Err(PyException::new_err(e)),
     }
+}
+
+/// Check which ProForma strings rustyms can parse (including modification placement rules).
+#[pyfunction]
+pub fn proforma_is_parseable(proformas: Vec<String>) -> Vec<bool> {
+    proformas
+        .iter()
+        .map(|p| {
+            let seq = p.split_once('/').map_or(p.as_str(), |(s, _)| s);
+            !seq.is_empty() && CompoundPeptidoformIon::pro_forma(seq, None).is_ok()
+        })
+        .collect()
 }
