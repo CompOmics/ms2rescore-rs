@@ -440,6 +440,7 @@ class TestExtendedAnnotation:
 
         b4_loss = [a for a in ext[1] if a.series == "b" and a.position == 4]
         assert b4_loss, ext[1]
+        assert math.isclose(b4_loss[0].mz_error, 393.1769 - 393.17686, abs_tol=2e-4)
         assert b4_loss[0].ion_type == "backbone"
         assert b4_loss[0].neutral_loss == "-H3O4P1"
         assert math.isclose(b4_loss[0].loss_mass, 97.976895, abs_tol=1e-4)
@@ -452,7 +453,7 @@ class TestExtendedAnnotation:
         import pickle
 
         a = FragmentAnnotation(series="b", position=1, charge=1)
-        assert (a.ion_type, a.neutral_loss, a.loss_mass) == ("backbone", "", 0.0)
+        assert (a.ion_type, a.neutral_loss, a.loss_mass, a.mz_error) == ("backbone", "", 0.0, 0.0)
 
         spec = AnnotatedMS2Spectrum(
             identifier="x",

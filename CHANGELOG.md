@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Modification-specific losses and diagnostic ions require named modifications
   in the ProForma string (e.g. `S[Phospho]`); numeric mass shifts carry none.
 - `FragmentAnnotation.ion_type`, `.neutral_loss` (Hill notation, e.g. `-H3O4P1`)
-  and `.loss_mass` (positive for a loss). Defaults keep existing constructors
+  `.loss_mass` (positive for a loss) and `.mz_error` (observed minus theoretical m/z).
+  Defaults keep existing constructors
   and pickles working.
 - `proforma_is_parseable`: check which ProForma strings rustyms accepts,
   including modification placement rules.

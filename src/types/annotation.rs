@@ -10,7 +10,7 @@ type AnnotatedMS2SpectrumReduceArgs = (
     Vec<Vec<FragmentAnnotation>>,
     Vec<Vec<FragmentAnnotation>>,
 );
-type FragmentAnnotationReduceArgs = (String, usize, usize, String, String, f64);
+type FragmentAnnotationReduceArgs = (String, usize, usize, String, String, f64, f64);
 
 /// A single fragment annotation on a peak.
 #[pyclass(module = "ms2rescore_rs", get_all, from_py_object)]
@@ -28,12 +28,14 @@ pub struct FragmentAnnotation {
     pub neutral_loss: String,
     /// Monoisotopic mass of the neutral loss (positive for a loss), 0.0 when none
     pub loss_mass: f64,
+    /// Observed minus theoretical m/z of the matched peak (Th)
+    pub mz_error: f64,
 }
 
 #[pymethods]
 impl FragmentAnnotation {
     #[new]
-    #[pyo3(signature = (series, position, charge, ion_type="backbone".to_string(), neutral_loss=String::new(), loss_mass=0.0))]
+    #[pyo3(signature = (series, position, charge, ion_type="backbone".to_string(), neutral_loss=String::new(), loss_mass=0.0, mz_error=0.0))]
     pub fn new(
         series: String,
         position: usize,
@@ -41,6 +43,7 @@ impl FragmentAnnotation {
         ion_type: String,
         neutral_loss: String,
         loss_mass: f64,
+        mz_error: f64,
     ) -> Self {
         FragmentAnnotation {
             series,
@@ -49,13 +52,14 @@ impl FragmentAnnotation {
             ion_type,
             neutral_loss,
             loss_mass,
+            mz_error,
         }
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "FragmentAnnotation(series='{}', position={}, charge={}, ion_type='{}', neutral_loss='{}', loss_mass={})",
-            self.series, self.position, self.charge, self.ion_type, self.neutral_loss, self.loss_mass
+            "FragmentAnnotation(series='{}', position={}, charge={}, ion_type='{}', neutral_loss='{}', loss_mass={}, mz_error={:.5})",
+            self.series, self.position, self.charge, self.ion_type, self.neutral_loss, self.loss_mass, self.mz_error
         )
     }
 
@@ -73,6 +77,7 @@ impl FragmentAnnotation {
                 self.ion_type.clone(),
                 self.neutral_loss.clone(),
                 self.loss_mass,
+                self.mz_error,
             ),
         ))
     }
@@ -83,24 +88,33 @@ impl FragmentAnnotation {
 /// Contains the original spectrum data alongside peak-centric annotations.
 /// Each entry in `peak_annotations` corresponds to the peak at the same index
 /// in `mz` / `intensity`.
-#[pyclass(module = "ms2rescore_rs", get_all, from_py_object)]
+#[pyclass(module = "ms2rescore_rs", from_py_object)]
 #[derive(Debug, Clone)]
 pub struct AnnotatedMS2Spectrum {
     /// Spectrum identifier
+    #[pyo3(get)]
     pub identifier: String,
     /// Original m/z values
+    #[pyo3(get)]
     pub mz: Vec<f32>,
     /// Original intensity values
+    #[pyo3(get)]
     pub intensity: Vec<f32>,
     /// Original precursor information
+    #[pyo3(get)]
     pub precursor: Option<Precursor>,
     /// Per-peak fragment annotations. `peak_annotations[i]` lists the fragment
     /// matches for peak `i`. An empty vec means the peak is unmatched.
     /// Only loss-free backbone ions (a, b, c, x, y, z) are listed here.
+    #[pyo3(get)]
     pub peak_annotations: Vec<Vec<FragmentAnnotation>>,
-    /// Per-peak extended annotations: neutral-loss variants, precursor, diagnostic,
-    /// immonium and satellite ions. Empty unless annotated with `extended=True`.
-    pub extended_annotations: Vec<Vec<FragmentAnnotation>>,
+    /// Extended annotations (neutral-loss variants, precursor, diagnostic, immonium and
+    /// satellite ions) stored sparsely as (peak index, annotation), sorted by peak index.
+    /// Exposed to Python as a per-peak list of lists via the `extended_annotations` getter.
+    pub extended: Vec<(u32, FragmentAnnotation)>,
+    /// Whether the spectrum was annotated with `extended=True`. When false the Python
+    /// `extended_annotations` is an empty list instead of one empty list per peak.
+    pub has_extended: bool,
 }
 
 #[pymethods]
@@ -115,14 +129,35 @@ impl AnnotatedMS2Spectrum {
         peak_annotations: Vec<Vec<FragmentAnnotation>>,
         extended_annotations: Vec<Vec<FragmentAnnotation>>,
     ) -> Self {
+        let has_extended = !extended_annotations.is_empty();
+        let extended = extended_annotations
+            .into_iter()
+            .enumerate()
+            .flat_map(|(idx, anns)| anns.into_iter().map(move |a| (idx as u32, a)))
+            .collect();
         AnnotatedMS2Spectrum {
             identifier,
             mz,
             intensity,
             precursor,
             peak_annotations,
-            extended_annotations,
+            extended,
+            has_extended,
         }
+    }
+
+    /// Per-peak extended annotations: neutral-loss variants, precursor, diagnostic,
+    /// immonium and satellite ions. Empty list unless annotated with `extended=True`.
+    #[getter]
+    pub fn extended_annotations(&self) -> Vec<Vec<FragmentAnnotation>> {
+        if !self.has_extended {
+            return Vec::new();
+        }
+        let mut out = vec![Vec::new(); self.mz.len()];
+        for (idx, ann) in &self.extended {
+            out[*idx as usize].push(ann.clone());
+        }
+        out
     }
 
     fn __repr__(&self) -> String {
@@ -154,7 +189,7 @@ impl AnnotatedMS2Spectrum {
                 self.intensity.clone(),
                 self.precursor.clone(),
                 self.peak_annotations.clone(),
-                self.extended_annotations.clone(),
+                self.extended_annotations(),
             ),
         ))
     }

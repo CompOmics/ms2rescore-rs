@@ -101,11 +101,8 @@ pub fn annotate_ms2_spectra(
                 intensity: self.intensity_f32,
                 precursor: self.precursor,
                 peak_annotations: vec![Vec::new(); n_peaks],
-                extended_annotations: if extended {
-                    vec![Vec::new(); n_peaks]
-                } else {
-                    Vec::new()
-                },
+                extended: Vec::new(),
+                has_extended: extended,
             }
         }
     }
@@ -227,11 +224,7 @@ pub fn annotate_ms2_spectra(
 
                 let n_peaks = item.mz_f32.len();
                 let mut peak_annotations = vec![Vec::new(); n_peaks];
-                let mut extended_annotations = if extended {
-                    vec![Vec::new(); n_peaks]
-                } else {
-                    Vec::new()
-                };
+                let mut extended_annotations: Vec<(u32, FragmentAnnotation)> = Vec::new();
 
                 for frag in &entry.fragments {
                     if let Some(idx) = search_sorted_mz(&item.mz_f32, frag.mz, &tolerance) {
@@ -242,11 +235,12 @@ pub fn annotate_ms2_spectra(
                             ion_type: frag.ion_type.to_string(),
                             neutral_loss: frag.neutral_loss.clone(),
                             loss_mass: frag.loss_mass,
+                            mz_error: item.mz_f32[idx] as f64 - frag.mz,
                         };
                         if frag.is_plain_backbone() {
                             peak_annotations[idx].push(ann);
                         } else {
-                            extended_annotations[idx].push(ann);
+                            extended_annotations.push((idx as u32, ann));
                         }
                     }
                 }
@@ -257,7 +251,11 @@ pub fn annotate_ms2_spectra(
                     intensity: item.intensity_f32,
                     precursor: item.precursor,
                     peak_annotations,
-                    extended_annotations,
+                    extended: {
+                        extended_annotations.sort_by_key(|(idx, _)| *idx);
+                        extended_annotations
+                    },
+                    has_extended: extended,
                 })
             })
             .collect()
