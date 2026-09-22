@@ -103,14 +103,18 @@ pub struct AnnotatedMS2Spectrum {
     /// Original precursor information
     #[pyo3(get)]
     pub precursor: Option<Precursor>,
-    /// Per-peak fragment annotations. `peak_annotations[i]` lists the fragment
-    /// matches for peak `i`. An empty vec means the peak is unmatched.
-    /// Only loss-free backbone ions (a, b, c, x, y, z) are listed here.
+    /// Loss-free backbone ion (a, b, c, x, y, z) matches, stored sparsely as
+    /// (peak index, annotation) sorted by peak index. Most peaks are unmatched, so one list
+    /// per peak would cost several times more than the peak data itself. Exposed to Python
+    /// as a per-peak list of lists via the `peak_annotations` getter, and as the raw pairs via
+    /// `backbone`, which avoids rebuilding that view when a consumer only needs the matches.
     #[pyo3(get)]
-    pub peak_annotations: Vec<Vec<FragmentAnnotation>>,
+    pub backbone: Vec<(u32, FragmentAnnotation)>,
     /// Extended annotations (neutral-loss variants, precursor, diagnostic, immonium and
     /// satellite ions) stored sparsely as (peak index, annotation), sorted by peak index.
-    /// Exposed to Python as a per-peak list of lists via the `extended_annotations` getter.
+    /// Exposed to Python as a per-peak list of lists via the `extended_annotations` getter, and
+    /// as the raw pairs via `extended`.
+    #[pyo3(get)]
     pub extended: Vec<(u32, FragmentAnnotation)>,
     /// Whether the spectrum was annotated with `extended=True`. When false the Python
     /// `extended_annotations` is an empty list instead of one empty list per peak.
@@ -130,20 +134,22 @@ impl AnnotatedMS2Spectrum {
         extended_annotations: Vec<Vec<FragmentAnnotation>>,
     ) -> Self {
         let has_extended = !extended_annotations.is_empty();
-        let extended = extended_annotations
-            .into_iter()
-            .enumerate()
-            .flat_map(|(idx, anns)| anns.into_iter().map(move |a| (idx as u32, a)))
-            .collect();
         AnnotatedMS2Spectrum {
             identifier,
             mz,
             intensity,
             precursor,
-            peak_annotations,
-            extended,
+            backbone: sparse(peak_annotations),
+            extended: sparse(extended_annotations),
             has_extended,
         }
+    }
+
+    /// Per-peak fragment annotations. `peak_annotations[i]` lists the loss-free backbone ion
+    /// matches for peak `i`; an empty list means the peak is unmatched.
+    #[getter]
+    pub fn peak_annotations(&self) -> Vec<Vec<FragmentAnnotation>> {
+        per_peak(&self.backbone, self.mz.len())
     }
 
     /// Per-peak extended annotations: neutral-loss variants, precursor, diagnostic,
@@ -153,19 +159,13 @@ impl AnnotatedMS2Spectrum {
         if !self.has_extended {
             return Vec::new();
         }
-        let mut out = vec![Vec::new(); self.mz.len()];
-        for (idx, ann) in &self.extended {
-            out[*idx as usize].push(ann.clone());
-        }
-        out
+        per_peak(&self.extended, self.mz.len())
     }
 
     fn __repr__(&self) -> String {
-        let n_annotated = self
-            .peak_annotations
-            .iter()
-            .filter(|a| !a.is_empty())
-            .count();
+        let mut peaks: Vec<u32> = self.backbone.iter().map(|(idx, _)| *idx).collect();
+        peaks.dedup();
+        let n_annotated = peaks.len();
         format!(
             "AnnotatedMS2Spectrum(identifier='{}', peaks={}, annotated={})",
             self.identifier,
@@ -188,9 +188,27 @@ impl AnnotatedMS2Spectrum {
                 self.mz.clone(),
                 self.intensity.clone(),
                 self.precursor.clone(),
-                self.peak_annotations.clone(),
+                self.peak_annotations(),
                 self.extended_annotations(),
             ),
         ))
     }
+}
+
+/// Flatten a per-peak list of lists into (peak index, annotation) pairs, sorted by peak index.
+fn sparse(per_peak: Vec<Vec<FragmentAnnotation>>) -> Vec<(u32, FragmentAnnotation)> {
+    per_peak
+        .into_iter()
+        .enumerate()
+        .flat_map(|(idx, anns)| anns.into_iter().map(move |a| (idx as u32, a)))
+        .collect()
+}
+
+/// Expand (peak index, annotation) pairs back into one list per peak.
+fn per_peak(sparse: &[(u32, FragmentAnnotation)], n_peaks: usize) -> Vec<Vec<FragmentAnnotation>> {
+    let mut out = vec![Vec::new(); n_peaks];
+    for (idx, ann) in sparse {
+        out[*idx as usize].push(ann.clone());
+    }
+    out
 }

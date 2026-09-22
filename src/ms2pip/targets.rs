@@ -37,7 +37,7 @@ pub fn ms2pip_extract_targets(
 
     // Extract owned data under the GIL
     struct OwnedData {
-        peak_annotations: Vec<Vec<(String, usize)>>, // (ion_key, 0-indexed position)
+        peak_annotations: Vec<(usize, String, usize)>, // (peak index, ion_key, 0-indexed position)
         intensities: Vec<f32>,
         n_ions: usize,
     }
@@ -50,40 +50,35 @@ pub fn ms2pip_extract_targets(
         let intensities_arr = intensities[i].bind(py);
         let intensities_vec = unsafe { intensities_arr.as_slice()? }.to_vec();
 
-        if intensities_vec.len() != spec.peak_annotations.len() {
+        if intensities_vec.len() != spec.mz.len() {
             return Err(PyException::new_err(format!(
                 "Spectrum {i}: intensities length {} != peak count {}",
                 intensities_vec.len(),
-                spec.peak_annotations.len()
+                spec.mz.len()
             )));
         }
 
         let n_ions = seq_lens[i].saturating_sub(1);
-        let peak_annotations: Vec<Vec<(String, usize)>> = spec
-            .peak_annotations
+        let peak_annotations: Vec<(usize, String, usize)> = spec
+            .backbone
             .iter()
-            .map(|annotations| {
-                annotations
-                    .iter()
-                    .filter_map(|ann| {
-                        if ann.position < 1 {
-                            return None;
-                        }
-                        let ion_key = if ann.charge <= 1 {
-                            ann.series.clone()
-                        } else {
-                            format!("{}{}", ann.series, ann.charge)
-                        };
-                        if !ion_types_set.contains(ion_key.as_str()) {
-                            return None;
-                        }
-                        let idx = ann.position - 1;
-                        if idx >= n_ions {
-                            return None;
-                        }
-                        Some((ion_key, idx))
-                    })
-                    .collect()
+            .filter_map(|(peak, ann)| {
+                if ann.position < 1 {
+                    return None;
+                }
+                let ion_key = if ann.charge <= 1 {
+                    ann.series.clone()
+                } else {
+                    format!("{}{}", ann.series, ann.charge)
+                };
+                if !ion_types_set.contains(ion_key.as_str()) {
+                    return None;
+                }
+                let idx = ann.position - 1;
+                if idx >= n_ions {
+                    return None;
+                }
+                Some((*peak as usize, ion_key, idx))
             })
             .collect();
 
@@ -104,12 +99,10 @@ pub fn ms2pip_extract_targets(
                     .map(|it| (it.clone(), vec![LOG2_FLOOR; data.n_ions]))
                     .collect();
 
-                for (peak_idx, annotations) in data.peak_annotations.iter().enumerate() {
-                    let intensity = data.intensities.get(peak_idx).copied().unwrap_or(0.0);
-                    for (ion_key, idx) in annotations {
-                        if let Some(arr) = target_map.get_mut(ion_key) {
-                            arr[*idx] = arr[*idx].max(intensity);
-                        }
+                for (peak_idx, ion_key, idx) in &data.peak_annotations {
+                    let intensity = data.intensities.get(*peak_idx).copied().unwrap_or(0.0);
+                    if let Some(arr) = target_map.get_mut(ion_key) {
+                        arr[*idx] = arr[*idx].max(intensity);
                     }
                 }
 

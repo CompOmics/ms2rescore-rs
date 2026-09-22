@@ -94,13 +94,12 @@ pub fn annotate_ms2_spectra(
 
     impl OwnedSpec {
         fn empty_annotated(self, extended: bool) -> AnnotatedMS2Spectrum {
-            let n_peaks = self.mz_f32.len();
             AnnotatedMS2Spectrum {
                 identifier: self.id,
                 mz: self.mz_f32,
                 intensity: self.intensity_f32,
                 precursor: self.precursor,
-                peak_annotations: vec![Vec::new(); n_peaks],
+                backbone: Vec::new(),
                 extended: Vec::new(),
                 has_extended: extended,
             }
@@ -222,8 +221,7 @@ pub fn annotate_ms2_spectra(
                     _ => return Ok(item.empty_annotated(extended)),
                 };
 
-                let n_peaks = item.mz_f32.len();
-                let mut peak_annotations = vec![Vec::new(); n_peaks];
+                let mut backbone: Vec<(u32, FragmentAnnotation)> = Vec::new();
                 let mut extended_annotations: Vec<(u32, FragmentAnnotation)> = Vec::new();
 
                 for frag in &entry.fragments {
@@ -238,7 +236,7 @@ pub fn annotate_ms2_spectra(
                             mz_error: item.mz_f32[idx] as f64 - frag.mz,
                         };
                         if frag.is_plain_backbone() {
-                            peak_annotations[idx].push(ann);
+                            backbone.push((idx as u32, ann));
                         } else {
                             extended_annotations.push((idx as u32, ann));
                         }
@@ -250,7 +248,10 @@ pub fn annotate_ms2_spectra(
                     mz: item.mz_f32,
                     intensity: item.intensity_f32,
                     precursor: item.precursor,
-                    peak_annotations,
+                    backbone: {
+                        backbone.sort_by_key(|(idx, _)| *idx);
+                        backbone
+                    },
                     extended: {
                         extended_annotations.sort_by_key(|(idx, _)| *idx);
                         extended_annotations

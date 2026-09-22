@@ -83,7 +83,7 @@ pub fn score_ms2_spectra(
 
     struct OwnedAnnotated {
         peak_intensities: Vec<f32>,
-        peak_annotations: Vec<Vec<(usize, usize)>>, // (series_index, position)
+        peak_annotations: Vec<(usize, usize, usize)>, // (peak_index, series_index, position)
         seq_len: usize,
     }
 
@@ -95,17 +95,11 @@ pub fn score_ms2_spectra(
         let spec = spec_ref.borrow();
 
         let peak_intensities: Vec<f32> = spec.intensity.clone();
-        let peak_annotations: Vec<Vec<(usize, usize)>> = spec
-            .peak_annotations
+        // (peak index, series index, position); sparse, one entry per match rather than per peak
+        let peak_annotations: Vec<(usize, usize, usize)> = spec
+            .backbone
             .iter()
-            .map(|anns| {
-                anns.iter()
-                    .filter_map(|a| {
-                        let idx = series_index(&a.series)?;
-                        Some((idx, a.position))
-                    })
-                    .collect()
-            })
+            .filter_map(|(peak, a)| Some((*peak as usize, series_index(&a.series)?, a.position)))
             .collect();
 
         owned.push(OwnedAnnotated {
@@ -137,24 +131,20 @@ pub fn score_ms2_spectra(
                 let mut matched_ints: [Vec<f32>; 6] = std::array::from_fn(|_| Vec::new());
 
                 let pseudo = 1e-5_f64;
-                let mut total_intensity = 0.0_f32;
+                let total_intensity: f32 = item.peak_intensities.iter().sum();
                 let mut matched_intensity = 0.0_f32;
-
-                for (peak_idx, anns) in item.peak_annotations.iter().enumerate() {
+                let mut last_matched_peak: Option<usize> = None;
+                for &(peak_idx, si, position) in &item.peak_annotations {
                     let inten = item.peak_intensities[peak_idx];
-                    total_intensity += inten;
-
-                    if !anns.is_empty() {
+                    if last_matched_peak != Some(peak_idx) {
                         matched_intensity += inten;
-
-                        for &(si, position) in anns {
-                            if position < seq_len {
-                                flags[si][position] = true;
-                                intensity_sum[si] += inten;
-                                if calculate_hyperscore {
-                                    matched_ints[si].push(inten);
-                                }
-                            }
+                        last_matched_peak = Some(peak_idx);
+                    }
+                    if position < seq_len {
+                        flags[si][position] = true;
+                        intensity_sum[si] += inten;
+                        if calculate_hyperscore {
+                            matched_ints[si].push(inten);
                         }
                     }
                 }
