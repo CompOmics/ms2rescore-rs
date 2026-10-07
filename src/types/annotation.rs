@@ -104,10 +104,8 @@ pub struct AnnotatedMS2Spectrum {
     #[pyo3(get)]
     pub precursor: Option<Precursor>,
     /// Loss-free backbone ion (a, b, c, x, y, z) matches, stored sparsely as
-    /// (peak index, annotation) sorted by peak index. Most peaks are unmatched, so one list
-    /// per peak would cost several times more than the peak data itself. Exposed to Python
-    /// as a per-peak list of lists via the `peak_annotations` getter, and as the raw pairs via
-    /// `backbone`, which avoids rebuilding that view when a consumer only needs the matches.
+    /// (peak index, annotation) sorted by peak index. Exposed to Python as a per-peak list of
+    /// lists via the `peak_annotations` getter, and as the raw pairs via `backbone`.
     #[pyo3(get)]
     pub backbone: Vec<(u32, FragmentAnnotation)>,
     /// Extended annotations (neutral-loss variants, precursor, diagnostic, immonium and

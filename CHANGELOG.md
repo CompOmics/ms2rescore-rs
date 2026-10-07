@@ -14,16 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in the ProForma string (e.g. `S[Phospho]`); numeric mass shifts carry none.
 - `FragmentAnnotation.ion_type`, `.neutral_loss` (Hill notation, e.g. `-H3O4P1`)
   `.loss_mass` (positive for a loss) and `.mz_error` (observed minus theoretical m/z).
-  Defaults keep existing constructors
-  and pickles working.
+  Defaults keep existing constructors and pickles working.
 - `proforma_is_parseable`: check which ProForma strings rustyms accepts,
   including modification placement rules.
 
 ### Changed
-- `peak_annotations` now only contains loss-free backbone ions. Previously
-  neutral-loss fragments (e.g. b3-H2O) were annotated as the plain ion (b3),
-  which inflated `score_ms2_spectra` matches and `ms2pip_extract_targets`
-  intensities. Loss fragments are now available via `extended_annotations`.
+- `peak_annotations` now only contains loss-free backbone ions. Neutral-loss
+  fragments (e.g. b3-H2O) are no longer annotated as the plain ion (b3), which
+  changes `score_ms2_spectra` matches and `ms2pip_extract_targets` intensities.
+  Loss fragments are available via `extended_annotations`.
 - `ms2pip_compute_theoretical_mz` no longer considers loss fragments when
   filling the m/z arrays.
 
