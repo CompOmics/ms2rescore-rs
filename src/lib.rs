@@ -22,6 +22,7 @@ fn ms2rescore_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(io::get_precursor_info, m)?)?;
     m.add_function(wrap_pyfunction!(io::get_ms2_spectra, m)?)?;
     m.add_function(wrap_pyfunction!(annotation::annotate_ms2_spectra, m)?)?;
+    m.add_function(wrap_pyfunction!(annotation::proforma_is_parseable, m)?)?;
     m.add_function(wrap_pyfunction!(scoring::ms2::score_ms2_spectra, m)?)?;
     m.add_function(wrap_pyfunction!(
         scoring::spectrum_prediction::ms2pip_features_from_prediction_peak_arrays,

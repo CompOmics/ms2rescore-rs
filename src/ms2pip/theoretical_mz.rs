@@ -98,7 +98,7 @@ pub fn ms2pip_compute_theoretical_mz(
                 let frag_charge =
                     rustyms::system::isize::Charge::new::<rustyms::system::e>(charge);
                 let fragments =
-                    build_theoretical_fragments(&peptidoform, frag_charge, &model, mode);
+                    build_theoretical_fragments(&peptidoform, frag_charge, &model, mode, false);
 
                 let mut mz_arrays = vec![vec![0.0_f32; n_ions]; ion_specs.len()];
 
