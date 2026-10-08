@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-10-08
 
 ### Added
 - `annotate_ms2_spectra(..., extended=False)`: with `extended=True`, neutral-loss
@@ -107,7 +107,7 @@ First stable 0.5.0 release. No functional changes since 0.5.0-beta.1.
 ### Added
 - Initial release: `get_precursor_info` for mzML, MGF, and Bruker TDF files
 
-[Unreleased]: https://github.com/compomics/ms2rescore-rs/compare/v0.5.0-beta.1...HEAD
+[0.6.0]: https://github.com/compomics/ms2rescore-rs/releases/tag/v0.6.0
 [0.5.0-beta.1]: https://github.com/compomics/ms2rescore-rs/compare/v0.4.3...v0.5.0-beta.1
 [0.4.3]: https://github.com/compomics/ms2rescore-rs/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/compomics/ms2rescore-rs/compare/v0.4.1...v0.4.2
